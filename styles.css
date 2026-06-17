@@ -330,6 +330,13 @@ body.game-page .group-heading {
   text-overflow: ellipsis;
 }
 
+.stats-page table th:nth-child(n+4),
+.stats-page table td:nth-child(n+4) {
+  width: 8.5%;
+  text-align: center;
+}
+
+
 /* ===================================================== ✅ CHAT PAGE ===================================================== */
 .chat-box {
   width: 100%;
