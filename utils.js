@@ -156,13 +156,12 @@ async function saveUserPick(db, userId, matchId, choice) {
   let picks = new Array(73).fill(0);
   if (doc.exists) picks = [...doc.data().picks];
 
-  const idx = getMatchIndex(window.matches, matchId);  // ✅ FIX
+  const idx = getMatchIndex(matches, matchId);   // ✅ use actual matches array
 
   picks[idx] = choiceToPickInt(choice);
 
   await docRef.set({ picks }, { merge: true });
 }
-
 
 /* =========================
    PICK PERCENTAGE UTILITY
