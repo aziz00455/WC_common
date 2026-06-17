@@ -149,14 +149,16 @@ async function loadUserPredictions(db, userId) {
   return doc.exists ? doc.data().picks : new Array(73).fill(0);
 }
 
-async function saveUserPick(db, userId, matches, matchId, choice) {
+async function saveUserPick(db, userId, matchId, choice) {
   const docRef = db.collection("users").doc(userId);
   const doc = await docRef.get();
 
   let picks = new Array(73).fill(0);
   if (doc.exists) picks = [...doc.data().picks];
 
-  picks[getMatchIndex(matches, matchId)] = choiceToPickInt(choice);
+  const idx = getMatchIndex(window.matches, matchId);  // ✅ FIX
+
+  picks[idx] = choiceToPickInt(choice);
 
   await docRef.set({ picks }, { merge: true });
 }
