@@ -432,6 +432,29 @@ body.game-page .group-heading {
     font-size: 12px;
     padding: 5px;
   }
+
+  /* ✅ stats tightening (MOBILE ONLY) */
+  .stats-page table th,
+  .stats-page table td {
+    font-size: 11px;
+    padding: 4px;
+  }
+
+  /* ✅ shrink TEAM column */
+  .stats-page table th:nth-child(3),
+  .stats-page table td:nth-child(3) {
+    width: 90px;
+    max-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ✅ let others compress */
+  .stats-page table th:not(:nth-child(3)),
+  .stats-page table td:not(:nth-child(3)) {
+    width: auto;
+  }
 }
 
 /* ===================================================== ✅ BLINK ===================================================== */
