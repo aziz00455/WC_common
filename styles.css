@@ -63,17 +63,20 @@ body.login-page {
   left: 0;
   width: 100%;
   z-index: 1000;
+
+  overflow-x: auto;
 }
 
 .title {
   font-size: 20px;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 .top-buttons {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 /* ===================================================== ✅ BUTTONS ===================================================== */
@@ -190,7 +193,7 @@ table {
   border-collapse: collapse;
   background: white;
   border: 1px solid #ddd;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 th, td {
