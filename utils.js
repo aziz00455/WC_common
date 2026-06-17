@@ -149,7 +149,7 @@ async function loadUserPredictions(db, userId) {
   return doc.exists ? doc.data().picks : new Array(73).fill(0);
 }
 
-async function savePrediction(db, userId, matches, matchId, choice) {
+async function saveUserPick(db, userId, matches, matchId, choice) {
   const docRef = db.collection("users").doc(userId);
   const doc = await docRef.get();
 
