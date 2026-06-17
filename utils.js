@@ -223,5 +223,5 @@ window.getMatchIndex = getMatchIndex;
 window.getPickLabel = getPickLabel;
 window.lockedMsg = lockedMsg;
 window.loadUserPredictions = loadUserPredictions;
-window.savePrediction = savePrediction;
+window.saveUserPick = saveUserPick;
 ``
