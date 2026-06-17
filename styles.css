@@ -429,34 +429,34 @@ body.game-page .group-heading {
   }
 
   th, td {
-    font-size: 12px;
-    padding: 5px;
-  }
-
-  /* ✅ stats tightening (MOBILE ONLY) */
-  .stats-page table th,
-  .stats-page table td {
     font-size: 11px;
     padding: 4px;
   }
 
-  /* ✅ shrink TEAM column */
+  /* ✅ force tighter layout overall */
+  .stats-page table {
+    table-layout: fixed;   /* ✅ important: force squeezing */
+  }
+
+  /* ✅ make ALL columns tight */
+  .stats-page table th,
+  .stats-page table td {
+    width: 7%;             /* compress everything */
+  }
+
+  /* ✅ crush TEAM column hard */
   .stats-page table th:nth-child(3),
   .stats-page table td:nth-child(3) {
-    width: 90px;
-    max-width: 90px;
+    width: 70px;           /* aggressive shrink */
+    max-width: 70px;
+    text-align: left;
+    padding-left: 6px;
+
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  /* ✅ let others compress */
-  .stats-page table th:not(:nth-child(3)),
-  .stats-page table td:not(:nth-child(3)) {
-    width: auto;
-  }
 }
-
 /* ===================================================== ✅ BLINK ===================================================== */
 @keyframes blink {
   0% { opacity: 1; }
