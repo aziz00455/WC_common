@@ -564,7 +564,7 @@ body.game-page .group-heading {
   /* ✅ LAST5 — significantly smaller */
   .landing-table .last5-col {
     width: 36px;
-    min-width: 36px;
+//    min-width: 36px;
   }
 
   /* ✅ ICONS — compact but readable */
