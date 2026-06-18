@@ -258,10 +258,10 @@ td:not(:first-child):not(:nth-child(2)) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   line-height: 1;
-  font-size: 13px;
+  font-size: 12px;
   vertical-align: middle;
   margin: 0 1px;
 }
@@ -270,12 +270,12 @@ td:not(:first-child):not(:nth-child(2)) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 3px;
   background: #111;
   color: #fff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
@@ -472,7 +472,7 @@ body.game-page .group-heading {
 
   th, td {
     font-size: 11px;
-    padding: 4px;
+    padding: 3px 2px;
   }
 
   /* ✅ force tighter layout overall */
@@ -502,26 +502,61 @@ body.game-page .group-heading {
   /* ✅ ONLY landing table: mobile fit */
   .landing-table {
     table-layout: fixed;
+    width: 100%;
+  }
+
+  .landing-table th:nth-child(1),
+  .landing-table td:nth-child(1) {
+    width: 30px;
   }
 
   .landing-table th:nth-child(2),
   .landing-table td:nth-child(2) {
-    width: 12%;
-    max-width: 54px;
-    padding-left: 6px;
+    width: 52px;
+    max-width: 52px;
+    padding-left: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .landing-table .last5-col {
-    width: 98px;
-    min-width: 98px;
+  .landing-table th:nth-child(3),
+  .landing-table td:nth-child(3) {
+    width: 34px;
   }
 
-  .last5-mark,
-  .n-icon {
+  .landing-table th:nth-child(4),
+  .landing-table td:nth-child(4) {
+    width: 42px;
+  }
+
+  .landing-table th:nth-child(5),
+  .landing-table td:nth-child(5),
+  .landing-table th:nth-child(6),
+  .landing-table td:nth-child(6),
+  .landing-table th:nth-child(7),
+  .landing-table td:nth-child(7) {
+    width: 26px;
+  }
+
+  .landing-table .last5-col {
+    width: 88px;
+    min-width: 88px;
+  }
+
+  .last5-mark {
+    width: 12px;
+    height: 12px;
+    font-size: 10px;
     margin: 0 1px;
+  }
+
+  .n-icon {
+    width: 12px;
+    height: 12px;
+    font-size: 8px;
+    margin: 0 1px;
+    border-radius: 2px;
   }
 }
 
