@@ -246,13 +246,12 @@ td:not(:first-child):not(:nth-child(2)) {
   width: auto;
 }
 
-/* ✅ Last 5 display */
-.landing-table th.last5-col,
-.landing-table td.last5-col {
+/* ✅ Last 5 landing-only styling */
+.landing-table .last5-col {
   white-space: nowrap;
   text-align: center;
-  width: 92px;
-  min-width: 92px;
+  width: 118px;
+  min-width: 118px;
 }
 
 .last5-mark {
@@ -264,23 +263,27 @@ td:not(:first-child):not(:nth-child(2)) {
   line-height: 1;
   font-size: 13px;
   vertical-align: middle;
+  margin: 0 2px;
 }
 
-.np-icon {
+.n-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
+  width: 16px;
   height: 16px;
-  padding: 0 2px;
-  margin: 0;
   border-radius: 3px;
   background: #111;
   color: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
+  margin: 0 2px;
+}
+
+.last5-small {
+  display: none;
 }
 
 /* ===================================================== ✅ GAME / SHOWPICK ===================================================== */
@@ -500,21 +503,32 @@ body.game-page .group-heading {
     text-overflow: ellipsis;
   }
 
-  /* ✅ ONLY landing table: shrink Name column on mobile */
+  /* ✅ ONLY landing table: mobile fit */
+  .landing-table {
+    table-layout: fixed;
+  }
+
   .landing-table th:nth-child(2),
   .landing-table td:nth-child(2) {
-    width: 22%;
-    max-width: 95px;
+    width: 15%;
+    max-width: 68px;
     padding-left: 6px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .landing-table th.last5-col,
-  .landing-table td.last5-col {
-    width: 92px;
-    min-width: 92px;
+  .landing-table .last5-col {
+    width: 118px;
+    min-width: 118px;
+  }
+
+  .last5-full {
+    display: none;
+  }
+
+  .last5-small {
+    display: inline;
   }
 }
 
