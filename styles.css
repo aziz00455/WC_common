@@ -477,3 +477,19 @@ body.game-page .group-heading {
   color: white;
   border-color: #1976d2;
 }
+
+
+/* ===================================================== ✅ LAST5 COMPACT OVERRIDE ===================================================== */
+th.last5-col,
+td.last5-col {
+  width: 1% !important;
+  white-space: nowrap;
+  padding: 2px 4px;
+  text-align: center;
+}
+
+.last5-col {
+  font-size: 12px;
+  letter-spacing: -1.5px;
+}
+``
