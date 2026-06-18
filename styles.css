@@ -499,65 +499,6 @@ body.game-page .group-heading {
     text-overflow: ellipsis;
   }
 
-  /* ✅ ONLY landing table: mobile fit */
-  .landing-table {
-    table-layout: fixed;
-    width: 100%;
-  }
-
-  .landing-table th:nth-child(1),
-  .landing-table td:nth-child(1) {
-    width: 30px;
-  }
-
-  .landing-table th:nth-child(2),
-  .landing-table td:nth-child(2) {
-    width: 52px;
-    max-width: 52px;
-    padding-left: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .landing-table th:nth-child(3),
-  .landing-table td:nth-child(3) {
-    width: 34px;
-  }
-
-  .landing-table th:nth-child(4),
-  .landing-table td:nth-child(4) {
-    width: 42px;
-  }
-
-  .landing-table th:nth-child(5),
-  .landing-table td:nth-child(5),
-  .landing-table th:nth-child(6),
-  .landing-table td:nth-child(6),
-  .landing-table th:nth-child(7),
-  .landing-table td:nth-child(7) {
-    width: 26px;
-  }
-
-  .landing-table .last5-col {
-    width: 88px;
-    min-width: 88px;
-  }
-
-  .last5-mark {
-    width: 12px;
-    height: 12px;
-    font-size: 10px;
-    margin: 0 1px;
-  }
-
-  .n-icon {
-    width: 12px;
-    height: 12px;
-    font-size: 8px;
-    margin: 0 1px;
-    border-radius: 2px;
-  }
 }
 
 /* ===================================================== ✅ BLINK ===================================================== */
@@ -572,4 +513,65 @@ body.game-page .group-heading {
   background-color: #1976d2;
   color: white;
   border-color: #1976d2;
+}
+
+
+/* =========================
+   LANDING MOBILE FIX ONLY
+   (safe, scoped, no bleed)
+========================= */
+@media (max-width: 600px) {
+
+  /* landing only */
+  .landing-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  /* ✅ give NAME more room */
+  .landing-table th:nth-child(2),
+  .landing-table td:nth-child(2) {
+    width: 22%;
+    max-width: 90px;
+  }
+
+  /* ✅ tighten numeric columns */
+  .landing-table th:nth-child(1),
+  .landing-table td:nth-child(1) {
+    width: 28px;
+  }
+
+  .landing-table th:nth-child(3),
+  .landing-table td:nth-child(3) {
+    width: 30px;
+  }
+
+  .landing-table th:nth-child(4),
+  .landing-table td:nth-child(4) {
+    width: 36px;
+  }
+
+  .landing-table th:nth-child(5),
+  .landing-table td:nth-child(5),
+  .landing-table th:nth-child(6),
+  .landing-table td:nth-child(6),
+  .landing-table th:nth-child(7),
+  .landing-table td:nth-child(7) {
+    width: 22px;
+  }
+
+  /* ✅ fix LAST5 overflow */
+  .landing-table .last5-col {
+    width: 78px;
+    min-width: 78px;
+  }
+
+  /* ✅ shrink icons ONLY in landing mobile */
+  .landing-table .last5-mark,
+  .landing-table .n-icon {
+    width: 11px;
+    height: 11px;
+    font-size: 8px;
+    margin: 0 0.5px;
+  }
 }
