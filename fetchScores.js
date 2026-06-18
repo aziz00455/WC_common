@@ -227,7 +227,7 @@
 
         const changed =
           prevScore1 !== fetched.score1 ||
-          prevScore2 !== fetched.score2 ||s
+          prevScore2 !== fetched.score2 ||
           prevStatus !== fetched.status;
 
         if (!changed) {
