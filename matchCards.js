@@ -27,6 +27,11 @@
         background: #fff3f3;
         border-color: #c62828;
       }
+	  
+	  .match-card.in-play {
+	    background: #e3f2fd;   /* light blue */
+	    border-color: #64b5f6; /* slightly stronger blue border */
+	  }
 
       .match-top {
         display: flex;
@@ -49,7 +54,7 @@
       }
 
       .in-play-label {
-        color: #ff0000;
+        color: #1976d2;
         font-weight: 700;
       }
 
@@ -213,11 +218,9 @@
       myPick === "team1" ? t1 :
       myPick === "team2" ? t2 :
       myPick === "tie" ? "Tie" :
-      "No Pick";
+      "NP";
 
-    const lockedStats =
-      `Pick Stats: ${t1} ${p.t1}, Tie ${p.tie}, ${t2} ${p.t2}, NP ${p.np} | My Pick: ${myPickLabel}`;
-
+    // completed / in-play / scheduled top-right + scores + result status
     if (completed) {
       topRight = "FINAL";
 
@@ -232,19 +235,12 @@
         else if (resultDoc.score1 < resultDoc.score2) outcome = "team2";
         else outcome = "tie";
 
-        /* ✅ UPDATED LOGIC:
-           Completed + no pick = incorrect
-           Completed + wrong pick = incorrect
-           Completed + correct pick = correct
-        */
         if (!myPick) {
           result = "incorrect";
         } else {
           result = myPick === outcome ? "correct" : "incorrect";
         }
       }
-
-      bottom = lockedStats;
 
     } else if (inPlay) {
       if (resultDoc?.lastUpdatedUtc) {
@@ -260,16 +256,26 @@
         };
       }
 
-      bottom = lockedStats;
-
     } else {
       topRight = `Kickoff at ${formatEasternTime(match.kickoffUtc)}`;
+    }
 
-      if (!locked) {
-        bottom = `My Pick: ${myPickLabel}`;
-      } else {
-        bottom = lockedStats;
-      }
+    // bottom message for game.html and landing.html
+    const picksText = `${t1} ${p.t1}, Tie ${p.tie}, ${t2} ${p.t2}, NP ${p.np}`;
+
+	let resultMark = "";
+	if (completed) {
+	  if (!myPick) resultMark = " ❌";
+	  else if (result === "correct") resultMark = " ✅";
+	  else resultMark = " ❌";
+	}
+
+    if (!locked) {
+      bottom = `<b>My Pick:</b> ${myPickLabel}`;
+    } else if (!completed) {
+      bottom = `<b>Picks:</b> ${picksText}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;<b>My Pick:</b> ${myPickLabel}`;
+    } else {
+      bottom = `<b>Picks:</b> ${picksText}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;<b>My Pick:</b> ${myPickLabel}${resultMark}`;
     }
 
     return {
@@ -339,6 +345,10 @@
 
     if (result === "correct") card.classList.add("correct");
     else if (result === "incorrect") card.classList.add("incorrect");
+	
+	if (topLeft && topLeft.includes("IN PLAY")) {
+	  card.classList.add("in-play");
+	}
 
     card.innerHTML = `
       <div class="match-top">
@@ -375,32 +385,32 @@
       <div class="status-line">${bottomMessage || ""}</div>
     `;
 
-if (!locked && showActions && onPick) {
-  card.querySelectorAll(".pick-btn").forEach(btn => {
-    btn.onclick = async () => {
-      const choice = btn.getAttribute("data-choice");
+    if (!locked && showActions && onPick) {
+      card.querySelectorAll(".pick-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const choice = btn.getAttribute("data-choice");
 
-      // 1) update selected button immediately
-      card.querySelectorAll(".pick-btn").forEach(b => {
-        b.classList.toggle("selected", b === btn);
+          // update selected button immediately
+          card.querySelectorAll(".pick-btn").forEach(b => {
+            b.classList.toggle("selected", b === btn);
+          });
+
+          // update bottom line immediately
+          const msg = card.querySelector(".status-line");
+          if (msg) {
+            let pickLabel = "";
+            if (choice === "team1") pickLabel = t1Short;
+            else if (choice === "team2") pickLabel = t2Short;
+            else pickLabel = "Tie";
+
+            msg.innerHTML = `<b>My Pick</b> ${pickLabel}`;
+          }
+
+          // save
+          await onPick({ matchId, choice });
+        };
       });
-
-      // 2) update bottom message immediately
-      const msg = card.querySelector(".status-line");
-      if (msg) {
-        let pickLabel = "";
-        if (choice === "team1") pickLabel = match.team1;
-        else if (choice === "team2") pickLabel = match.team2;
-        else pickLabel = "Tie";
-
-        msg.textContent = `Your pick: ${pickLabel}`;
-      }
-
-      // 3) save using existing handler
-      await onPick({ matchId, choice });
-    };
-  });
-}
+    }
 
     return card;
   }
