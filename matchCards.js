@@ -375,20 +375,32 @@
       <div class="status-line">${bottomMessage || ""}</div>
     `;
 
-    if (!locked && showActions && onPick) {
-      card.querySelectorAll(".pick-btn").forEach(btn => {
-        btn.onclick = () => {
-          const choice = btn.getAttribute("data-choice");
-          onPick({ matchId, choice });
+if (!locked && showActions && onPick) {
+  card.querySelectorAll(".pick-btn").forEach(btn => {
+    btn.onclick = async () => {
+      const choice = btn.getAttribute("data-choice");
 
-          btn.parentNode
-            .querySelectorAll(".pick-btn")
-            .forEach(b => b.classList.remove("selected"));
-
-          btn.classList.add("selected");
-        };
+      // 1) update selected button immediately
+      card.querySelectorAll(".pick-btn").forEach(b => {
+        b.classList.toggle("selected", b === btn);
       });
-    }
+
+      // 2) update bottom message immediately
+      const msg = card.querySelector(".status-line");
+      if (msg) {
+        let pickLabel = "";
+        if (choice === "team1") pickLabel = match.team1;
+        else if (choice === "team2") pickLabel = match.team2;
+        else pickLabel = "Tie";
+
+        msg.textContent = `Your pick: ${pickLabel}`;
+      }
+
+      // 3) save using existing handler
+      await onPick({ matchId, choice });
+    };
+  });
+}
 
     return card;
   }
