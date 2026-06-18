@@ -517,7 +517,7 @@ body.game-page .group-heading {
 
 /* =========================
    LANDING MOBILE FIX ONLY
-   FINAL (tight L5, wider name)
+   FINAL v2 (balanced widths)
 ========================= */
 @media (max-width: 600px) {
 
@@ -526,50 +526,53 @@ body.game-page .group-heading {
     width: 100%;
   }
 
-  /* ✅ GIVE NAME MORE SPACE */
+  /* ✅ NAME — bigger */
   .landing-table th:nth-child(2),
   .landing-table td:nth-child(2) {
-    width: 28%;
-    max-width: 110px;
+    width: 32%;
+    max-width: 130px;
   }
 
-  /* ✅ KEEP OTHER COLUMNS TIGHT */
+  /* ✅ RANK — same */
   .landing-table th:nth-child(1),
   .landing-table td:nth-child(1) {
-    width: 26px;
+    width: 24px;
   }
 
+  /* ✅ PICKS — slightly wider */
   .landing-table th:nth-child(3),
   .landing-table td:nth-child(3) {
-    width: 28px;
-  }
-
-  .landing-table th:nth-child(4),
-  .landing-table td:nth-child(4) {
     width: 34px;
   }
 
+  /* ✅ SCORE — slightly wider */
+  .landing-table th:nth-child(4),
+  .landing-table td:nth-child(4) {
+    width: 40px;
+  }
+
+  /* ✅ ✅ ❌ NP — widen ~50% */
   .landing-table th:nth-child(5),
   .landing-table td:nth-child(5),
   .landing-table th:nth-child(6),
   .landing-table td:nth-child(6),
   .landing-table th:nth-child(7),
   .landing-table td:nth-child(7) {
-    width: 20px;
+    width: 30px;
   }
 
-  /* ✅ SHRINK LAST5 COLUMN (~30% REDUCTION) */
+  /* ✅ LAST5 — significantly smaller */
   .landing-table .last5-col {
-    width: 60px;
-    min-width: 60px;
+    width: 36px;
+    min-width: 36px;
   }
 
-  /* ✅ SHRINK ICONS TO MATCH */
+  /* ✅ ICONS — compact but readable */
   .landing-table .last5-mark,
   .landing-table .n-icon {
-    width: 10px;
-    height: 10px;
-    font-size: 7px;
-    margin: 0 0.5px;
+    width: 8px;
+    height: 8px;
+    font-size: 6px;
+    margin: 0 0.4px;
   }
 }
