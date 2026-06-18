@@ -5,6 +5,9 @@
   const SCOREBOARD_BASE_URL =
     "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
 
+  // ✅ bump this whenever you deploy a schema / writer logic change
+  const SCORE_WRITER_VERSION = 2;
+
   function normalize(str) {
     return (str || "")
       .toLowerCase()
@@ -105,23 +108,51 @@
     }
   }
 
-  // ✅ load current match results from Firestore
+  // ✅ load current match results doc
+  async function loadMatchResultsDoc() {
+    try {
+      const doc = await db.collection("matchResults").doc("main").get();
+      return doc.exists ? doc.data() : {};
+    } catch (err) {
+      console.error("loadMatchResultsDoc error:", err);
+      return {};
+    }
+  }
+
+  // ✅ load current match results map only
   async function loadMatchResults() {
     try {
-      const summaryDoc = await db.collection("matchResults").doc("main").get();
-      return summaryDoc.exists ? (summaryDoc.data().results || {}) : {};
+      const docData = await loadMatchResultsDoc();
+      return docData.results || {};
     } catch (err) {
       console.error("loadMatchResults error:", err);
       return {};
     }
   }
 
-  // ✅ save only when needed
+  // ✅ save results with version gate
   async function saveMatchResults(results) {
     try {
-      await db.collection("matchResults")
-        .doc("main")
-        .set({ results }, { merge: true });
+      const docRef = db.collection("matchResults").doc("main");
+      const snap = await docRef.get();
+      const currentData = snap.exists ? snap.data() : {};
+
+      const currentWriterVersion = currentData.writerVersion || 0;
+
+      // ✅ block stale cached clients
+      if (currentWriterVersion > SCORE_WRITER_VERSION) {
+        console.warn(
+          `Blocked write from stale client. Current writerVersion=${currentWriterVersion}, this client=${SCORE_WRITER_VERSION}`
+        );
+        return false;
+      }
+
+      await docRef.set({
+        writerVersion: SCORE_WRITER_VERSION,
+        results
+      });
+
+      return true;
     } catch (err) {
       console.error("saveMatchResults error:", err);
       throw err;
@@ -188,16 +219,30 @@
 
         const fetched = await fetchScoreForMatch(match);
 
-        if (fetched) {
-          results[match.id] = {
-            ...(resultDoc || {}),
-            score1: fetched.score1,
-            score2: fetched.score2,
-            status: fetched.status,
-            lastUpdatedUtc: new Date().toISOString()
-          };
-          updated = true;
+        if (!fetched) continue;
+
+        const prevScore1 = resultDoc?.score1 ?? null;
+        const prevScore2 = resultDoc?.score2 ?? null;
+        const prevStatus = resultDoc?.status ?? null;
+
+        const changed =
+          prevScore1 !== fetched.score1 ||
+          prevScore2 !== fetched.score2 ||s
+          prevStatus !== fetched.status;
+
+        if (!changed) {
+          continue;
         }
+
+        // ✅ write ONLY the current schema — do NOT preserve legacy fields
+        results[match.id] = {
+          score1: fetched.score1,
+          score2: fetched.score2,
+          status: fetched.status,
+          lastUpdatedUtc: new Date().toISOString()
+        };
+
+        updated = true;
       }
 
       if (updated) {
