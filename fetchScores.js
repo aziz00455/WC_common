@@ -220,27 +220,33 @@
         const fetched = await fetchScoreForMatch(match);
 
         if (!fetched) continue;
+				
+		const prevScore1 = resultDoc?.score1 ?? null;
+		const prevScore2 = resultDoc?.score2 ?? null;
+		const prevStatus = resultDoc?.status ?? null;
 
-        const prevScore1 = resultDoc?.score1 ?? null;
-        const prevScore2 = resultDoc?.score2 ?? null;
-        const prevStatus = resultDoc?.status ?? null;
+		const changed =
+		  prevScore1 !== fetched.score1 ||
+		  prevScore2 !== fetched.score2 ||
+		  prevStatus !== fetched.status;
 
-        const changed =
-          prevScore1 !== fetched.score1 ||
-          prevScore2 !== fetched.score2 ||
-          prevStatus !== fetched.status;
+		// ✅ Case 1: fetched successfully but no change → still update lastUpdatedUtc
+		if (!changed) {
+		  results[match.id] = {
+			...resultDoc,
+			lastUpdatedUtc: new Date(serverNow).toISOString() // ✅ SERVER TIME ONLY
+		  };
+		  updated = true;
+		  continue;
+		}
 
-        if (!changed) {
-          continue;
-        }
-
-        // ✅ write ONLY the current schema — do NOT preserve legacy fields
-        results[match.id] = {
-          score1: fetched.score1,
-          score2: fetched.score2,
-          status: fetched.status,
-          lastUpdatedUtc: new Date().toISOString()
-        };
+		// ✅ Case 2: score/status changed → overwrite
+		results[match.id] = {
+		  score1: fetched.score1,
+		  score2: fetched.score2,
+		  status: fetched.status,
+		  lastUpdatedUtc: new Date(serverNow).toISOString() // ✅ SERVER TIME ONLY
+		};
 
         updated = true;
       }
