@@ -1,0 +1,729 @@
+/* =========================================================
+   R32_styles.css
+   Knockout-stage-only shared styles
+   Styled to match the main game as closely as possible
+   without importing styles.css
+========================================================= */
+
+/* ------------------------------
+   Root / Reset
+------------------------------ */
+:root {
+  --r32-bg: #f4f4f4;
+  --r32-surface: #ffffff;
+  --r32-surface-2: #fafafa;
+  --r32-border: #ddd;
+  --r32-border-strong: #ccc;
+
+  --r32-text: #222;
+  --r32-text-muted: #666;
+  --r32-text-soft: #888;
+
+  --r32-primary: #1a73e8;
+  --r32-primary-hover: #1565c0;
+
+  --r32-live-bg: #ecfeff;
+  --r32-live-text: #0f766e;
+
+  --r32-scheduled-bg: #eef2ff;
+  --r32-scheduled-text: #4338ca;
+
+  --r32-complete-bg: #f3f4f6;
+  --r32-complete-text: #374151;
+
+  --r32-shadow-sm: 0 0 10px rgba(0, 0, 0, 0.06);
+
+  --r32-radius-sm: 4px;
+  --r32-radius-md: 6px;
+  --r32-radius-lg: 6px;
+
+  --r32-topbar-h: 70px;
+
+  /* Fixed deterministic bracket geometry */
+  --r32-lane-w: 280px;
+  --r32-lane-gap: 30px;
+  --r32-bracket-visible-w: 900px;
+
+  /* Floating nav vertical position */
+  --r32-floating-nav-top: 108px;
+
+  /* Fixed visible slot geometry */
+  --slot1-pad: 0px;
+  --slot1-gap: 10px;
+
+  --slot2-pad: 64px;
+  --slot2-gap: 138px;
+
+  --slot3-pad: 192px;
+  --slot3-gap: 394px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--r32-bg);
+  color: var(--r32-text);
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+body {
+  min-height: 100vh;
+  line-height: 1.4;
+  padding-top: 70px;
+}
+
+/* ------------------------------
+   Links / Buttons
+------------------------------ */
+a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+button {
+  appearance: none;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #222;
+}
+
+button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ------------------------------
+   Topbar
+------------------------------ */
+#topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  min-height: var(--r32-topbar-h);
+  z-index: 1000;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  overflow-x: auto;
+}
+
+.r32-topbar-inner {
+  width: 100%;
+  max-width: none;
+  min-height: var(--r32-topbar-h);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+.r32-topbar-title {
+  font-size: 20px;
+  font-weight: bold;
+  white-space: nowrap;
+  color: #222;
+}
+
+.r32-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.r32-btn,
+.r32-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: auto;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #222;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.2;
+}
+
+.r32-btn:hover,
+.r32-btn-primary:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.r32-btn-primary {
+  background: #fff;
+  color: #222;
+}
+
+/* ------------------------------
+   Layout Shell
+------------------------------ */
+.page-wrap {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.bracket-wrap {
+  width: 100%;
+}
+
+.bracket-stage {
+  width: 100%;
+  max-width: var(--r32-bracket-visible-w);
+  margin: 0 auto;
+}
+
+/* Last updated row under topbar, aligned to browser left edge */
+.bracket-last-updated {
+  margin: 0 0 14px 0;
+  font-size: 11px;
+  font-weight: normal;
+  color: #666;
+  line-height: 1.2;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  padding-left: 12px;
+}
+
+/* ------------------------------
+   Floating PC nav buttons
+------------------------------ */
+.bracket-nav-btn {
+  position: fixed;
+  top: var(--r32-floating-nav-top);
+  z-index: 900;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  font-family: Arial, sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.bracket-nav-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.bracket-nav-btn-left {
+  left: calc(50% - 500px + 6px);
+}
+
+.bracket-nav-btn-right {
+  right: calc(50% - 500px + 6px);
+}
+
+.bracket-nav-btn.is-hidden {
+  display: none !important;
+}
+
+/* ------------------------------
+   Horizontal Bracket Board
+------------------------------ */
+.bracket-scroll {
+  width: 100%;
+  max-width: var(--r32-bracket-visible-w);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 10px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.bracket-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.bracket-board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--r32-lane-gap);
+  min-width: max-content;
+}
+
+.bracket-lane {
+  width: var(--r32-lane-w);
+  flex: 0 0 var(--r32-lane-w);
+}
+
+.bracket-lane-title {
+  margin: 0 0 12px 0;
+  padding: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: #222;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.bracket-lane-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lane-gap, 10px);
+  padding-top: var(--lane-pad-top, 0);
+  transition:
+    padding-top 220ms ease,
+    gap 220ms ease;
+}
+
+/* ------------------------------
+   Default = window-0
+   R32 / R16 / QF visible
+------------------------------ */
+body.bracket-window-0 .lane-r32 .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-0 .lane-r16 .bracket-lane-cards {
+  --lane-pad-top: var(--slot2-pad);
+  --lane-gap: var(--slot2-gap);
+}
+
+body.bracket-window-0 .lane-qf .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: var(--slot3-gap);
+}
+
+body.bracket-window-0 .lane-sf .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: var(--slot3-gap);
+}
+
+body.bracket-window-0 .lane-final .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: 40px;
+}
+
+/* ------------------------------
+   window-1
+   R16 / QF / SF visible
+------------------------------ */
+body.bracket-window-1 .lane-r32 .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-1 .lane-r16 .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-1 .lane-qf .bracket-lane-cards {
+  --lane-pad-top: var(--slot2-pad);
+  --lane-gap: var(--slot2-gap);
+}
+
+body.bracket-window-1 .lane-sf .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: var(--slot3-gap);
+}
+
+body.bracket-window-1 .lane-final .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: 40px;
+}
+
+/* ------------------------------
+   window-2
+   QF / SF / Final visible
+------------------------------ */
+body.bracket-window-2 .lane-r32 .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-2 .lane-r16 .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-2 .lane-qf .bracket-lane-cards {
+  --lane-pad-top: var(--slot1-pad);
+  --lane-gap: var(--slot1-gap);
+}
+
+body.bracket-window-2 .lane-sf .bracket-lane-cards {
+  --lane-pad-top: var(--slot2-pad);
+  --lane-gap: var(--slot2-gap);
+}
+
+body.bracket-window-2 .lane-final .bracket-lane-cards {
+  --lane-pad-top: var(--slot3-pad);
+  --lane-gap: 40px;
+}
+
+/* ------------------------------
+   Match Card
+------------------------------ */
+.match-card {
+  width: 100%;
+  height: 118px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.match-card.live-match {
+  border: 2px solid #1a73e8;
+  background: #eef6ff;
+}
+
+.match-card.complete-match {
+  border: 1px solid #e0c24d;
+  background: #fff9d9;
+}
+
+.match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  height: 28px;
+  overflow: hidden;
+}
+
+.match-head-left {
+  min-width: 0;
+}
+
+.match-head-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  text-align: right;
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+}
+
+.match-num {
+  font-size: 12px;
+  font-weight: bold;
+  color: #666;
+  margin-bottom: 0;
+  letter-spacing: 0;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.match-status-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.match-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.match-scheduled-time {
+  margin-top: 2px;
+  font-size: 9px;
+  color: #222;
+  line-height: 1.1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.status-scheduled {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.status-in_play {
+  background: #ecfeff;
+  color: #0f766e;
+}
+
+.status-complete {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.match-live-time {
+  font-size: 10px;
+  font-weight: bold;
+  color: #666;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* ------------------------------
+   Team Rows
+------------------------------ */
+.team-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid #eee;
+}
+
+.team-row:first-of-type {
+  border-top: none;
+}
+
+.team-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.team-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.team-name {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.1;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-name.placeholder {
+  color: #c62828;
+  font-weight: normal;
+}
+
+.player-line {
+  font-size: 10px;
+  color: #666;
+  line-height: 1.1;
+  font-weight: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-line.assigned {
+  font-weight: bold;
+  color: #222;
+}
+
+.team-flag {
+  width: 22px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex: 0 0 auto;
+  display: block;
+}
+
+.team-flag-text {
+  width: 22px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.team-flag-placeholder {
+  width: 22px;
+  height: 16px;
+  border-radius: 2px;
+  background: #d1d5db;
+  border: 1px solid #c4c9d1;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.score-box {
+  min-width: 18px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: bold;
+  color: #222;
+}
+
+.score-box.empty {
+  color: #888;
+  font-weight: normal;
+}
+
+/* ------------------------------
+   Generic States
+------------------------------ */
+.empty-state {
+  padding: 22px 18px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+/* ------------------------------
+   Tablet / Mobile
+   Keep simple for now
+------------------------------ */
+@media (max-width: 1024px) {
+  :root {
+    --r32-lane-w: 260px;
+    --r32-lane-gap: 24px;
+    --r32-bracket-visible-w: 100%;
+  }
+
+  .page-wrap {
+    padding: 14px 10px 22px;
+  }
+
+  .bracket-last-updated {
+    margin-bottom: 12px;
+    padding-left: 12px;
+  }
+
+  .bracket-nav-btn {
+    display: none !important;
+  }
+
+  .bracket-stage {
+    max-width: 100%;
+  }
+
+  .bracket-scroll {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .match-card {
+    height: 118px;
+  }
+}
+
+@media (max-width: 820px) {
+  .r32-topbar-inner {
+    align-items: center;
+    flex-direction: row;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .r32-topbar-title {
+    font-size: 14px;
+  }
+
+  .r32-topbar-actions {
+    justify-content: flex-end;
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --r32-lane-w: 230px;
+    --r32-lane-gap: 20px;
+  }
+
+  .match-card {
+    height: 112px;
+    padding: 8px 8px 6px;
+  }
+
+  .match-head {
+    height: 26px;
+  }
+
+  .match-num {
+    font-size: 11px;
+  }
+
+  .match-scheduled-time {
+    font-size: 9px;
+  }
+
+  .team-name {
+    font-size: 11px;
+  }
+
+  .player-line {
+    font-size: 9px;
+  }
+
+  .score-box {
+    font-size: 14px;
+  }
+
+  .r32-btn,
+  .r32-btn-primary {
+    font-size: 12px;
+    padding: 6px 10px;
+    min-height: auto;
+  }
+}

@@ -97,4 +97,47 @@ window.matches = [
   { id:"L6", group:"L", kickoffUtc:"2026-06-27T21:00:00Z", team1:"Croatia", team2:"Ghana"}
 
 ];
-``
+
+
+// ===============================
+// Knockout Stage Fixtures
+// ===============================
+
+window.R32matches = [
+  { id:"R32_73", round:"R32", matchNumber:73, kickoffUtc:"2026-06-28T12:00:00Z", slot1Label:"2A", slot2Label:"2B" },
+  { id:"R32_74", round:"R32", matchNumber:74, kickoffUtc:"2026-06-29T16:30:00Z", slot1Label:"1E", slot2Label:"3RD A/B/C/D/F" },
+  { id:"R32_75", round:"R32", matchNumber:75, kickoffUtc:"2026-06-29T19:00:00Z", slot1Label:"1F", slot2Label:"2C" },
+  { id:"R32_76", round:"R32", matchNumber:76, kickoffUtc:"2026-06-29T12:00:00Z", slot1Label:"1C", slot2Label:"2F" },
+  { id:"R32_77", round:"R32", matchNumber:77, kickoffUtc:"2026-06-30T17:00:00Z", slot1Label:"1I", slot2Label:"3RD C/D/F/G/H" },
+  { id:"R32_78", round:"R32", matchNumber:78, kickoffUtc:"2026-06-30T12:00:00Z", slot1Label:"2E", slot2Label:"2I" },
+  { id:"R32_79", round:"R32", matchNumber:79, kickoffUtc:"2026-06-30T19:00:00Z", slot1Label:"1A", slot2Label:"3RD C/E/F/H/I" },
+  { id:"R32_80", round:"R32", matchNumber:80, kickoffUtc:"2026-07-01T12:00:00Z", slot1Label:"1L", slot2Label:"3RD E/H/I/J/K" },
+  { id:"R32_81", round:"R32", matchNumber:81, kickoffUtc:"2026-07-01T17:00:00Z", slot1Label:"1D", slot2Label:"3RD B/E/F/I/J" },
+  { id:"R32_82", round:"R32", matchNumber:82, kickoffUtc:"2026-07-01T13:00:00Z", slot1Label:"1G", slot2Label:"3RD A/E/H/I/J" },
+  { id:"R32_83", round:"R32", matchNumber:83, kickoffUtc:"2026-07-02T19:00:00Z", slot1Label:"2K", slot2Label:"2L" },
+  { id:"R32_84", round:"R32", matchNumber:84, kickoffUtc:"2026-07-02T12:00:00Z", slot1Label:"1H", slot2Label:"2J" },
+  { id:"R32_85", round:"R32", matchNumber:85, kickoffUtc:"2026-07-02T20:00:00Z", slot1Label:"1B", slot2Label:"3RD E/F/G/I/J" },
+  { id:"R32_86", round:"R32", matchNumber:86, kickoffUtc:"2026-07-03T18:00:00Z", slot1Label:"1J", slot2Label:"2H" },
+  { id:"R32_87", round:"R32", matchNumber:87, kickoffUtc:"2026-07-03T20:30:00Z", slot1Label:"1K", slot2Label:"3RD D/E/I/J/L" },
+  { id:"R32_88", round:"R32", matchNumber:88, kickoffUtc:"2026-07-03T13:00:00Z", slot1Label:"2D", slot2Label:"2G" },
+
+  { id:"R16_89", round:"R16", matchNumber:89, kickoffUtc:"2026-07-04T17:00:00Z", slot1Label:"W74", slot2Label:"W77" },
+  { id:"R16_90", round:"R16", matchNumber:90, kickoffUtc:"2026-07-04T12:00:00Z", slot1Label:"W73", slot2Label:"W75" },
+  { id:"R16_91", round:"R16", matchNumber:91, kickoffUtc:"2026-07-05T16:00:00Z", slot1Label:"W76", slot2Label:"W78" },
+  { id:"R16_92", round:"R16", matchNumber:92, kickoffUtc:"2026-07-05T18:00:00Z", slot1Label:"W79", slot2Label:"W80" },
+  { id:"R16_93", round:"R16", matchNumber:93, kickoffUtc:"2026-07-06T14:00:00Z", slot1Label:"W83", slot2Label:"W84" },
+  { id:"R16_94", round:"R16", matchNumber:94, kickoffUtc:"2026-07-06T17:00:00Z", slot1Label:"W81", slot2Label:"W82" },
+  { id:"R16_95", round:"R16", matchNumber:95, kickoffUtc:"2026-07-07T12:00:00Z", slot1Label:"W86", slot2Label:"W88" },
+  { id:"R16_96", round:"R16", matchNumber:96, kickoffUtc:"2026-07-07T13:00:00Z", slot1Label:"W85", slot2Label:"W87" },
+
+  { id:"QF_97", round:"QF", matchNumber:97, kickoffUtc:"2026-07-09T16:00:00Z", slot1Label:"W89", slot2Label:"W90" },
+  { id:"QF_98", round:"QF", matchNumber:98, kickoffUtc:"2026-07-10T12:00:00Z", slot1Label:"W93", slot2Label:"W94" },
+  { id:"QF_99", round:"QF", matchNumber:99, kickoffUtc:"2026-07-11T17:00:00Z", slot1Label:"W91", slot2Label:"W92" },
+  { id:"QF_100", round:"QF", matchNumber:100, kickoffUtc:"2026-07-11T20:00:00Z", slot1Label:"W95", slot2Label:"W96" },
+
+  { id:"SF_101", round:"SF", matchNumber:101, kickoffUtc:"2026-07-14T14:00:00Z", slot1Label:"W97", slot2Label:"W98" },
+  { id:"SF_102", round:"SF", matchNumber:102, kickoffUtc:"2026-07-15T15:00:00Z", slot1Label:"W99", slot2Label:"W100" },
+
+  { id:"3P_103", round:"3P", matchNumber:103, kickoffUtc:"2026-07-18T17:00:00Z", slot1Label:"L101", slot2Label:"L102" },
+  { id:"F_104", round:"F", matchNumber:104, kickoffUtc:"2026-07-19T15:00:00Z", slot1Label:"W101", slot2Label:"W102" }
+];
