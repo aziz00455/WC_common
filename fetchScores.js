@@ -1,630 +1,420 @@
-/* =========================================================
-   R32_fetchScores.js
-   Knockout-stage-only data loading / refresh helpers
-   Client-side scoreboard sync only
-   No dependency on fetchScores.js or utils.js
-========================================================= */
-(function () {
-  const DEFAULT_REFRESH_MS = 10 * 60 * 1000;
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WC 2026 - Knockout Bracket</title>
 
-  // Firestore doc that stores the latest normalized knockout snapshot
-  const SNAPSHOT_COLLECTION = "__live";
-  const SNAPSHOT_DOC_ID = "knockoutBracket";
+  <!-- R32 only -->
+  <link rel="stylesheet" href="../WC_common/R32_styles.css">
+</head>
 
-  // ESPN site API (same source family used by the working group-stage fetchScores.js)
-  const SCOREBOARD_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
+<body>
+  <div id="topbar"></div>
 
-  // Local throttle key for optional sync trigger
-  const SYNC_THROTTLE_KEY = "r32_knockout_sync_last_attempt_utc";
+  <div class="page-wrap">
+    <div class="bracket-wrap">
+      <div id="lastUpdatedText" class="bracket-last-updated">Last Updated: —</div>
 
-  function toIsoNow() {
-    return new Date().toISOString();
-  }
+      <button id="bracketLeftBtn" class="bracket-nav-btn bracket-nav-btn-left is-hidden" onclick="scrollBracket(-1)" aria-label="Scroll bracket left" title="Previous rounds">‹</button>
+      <button id="bracketRightBtn" class="bracket-nav-btn bracket-nav-btn-right" onclick="scrollBracket(1)" aria-label="Scroll bracket right" title="Next rounds">›</button>
 
-  function safeNumber(value) {
-    return Number.isFinite(value) ? value : null;
-  }
+      <div id="bracketStage" class="bracket-stage">
+        <div id="bracketApp"></div>
+      </div>
+    </div>
+  </div>
 
-  function safeString(value) {
-    return typeof value === "string" ? value : null;
-  }
+  <script>
+    window.global = window;
+    window.process = window.process || { env: {} };
+  </script>
 
-  function normalizeText(value) {
-    return String(value || "").trim();
-  }
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase.js"></script>
 
-  function normalizeKey(value) {
-    return normalizeText(value)
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "");
-  }
+  <script src="../WC_common/matches.js"></script>
+  <script src="../WC_common/teams.js"></script>
+  <script src="../WC_common/R32_fetchScores.js"></script>
+  <script src="../WC_common/R32_utils.js"></script>
+  <script src="../WC_common/R32_matchCards.js"></script>
 
-  function normalizeMatchStatus(status) {
-    const s = String(status || "").trim().toLowerCase();
+  <script>
+    const R32_GAME_ID = "WC2026_DEV";
+    const SESSION_KEY = "session_" + R32_GAME_ID;
+    const userId = localStorage.getItem(SESSION_KEY);
+    if (!userId) window.location.href = "index.html";
 
-    if (s === "in_play") return "in_play";
-    if (s === "complete") return "complete";
-    return "scheduled";
-  }
+    const R32_REFRESH_MS = 10 * 60 * 1000;
+    const R32_IDLE_MS = 20 * 60 * 1000;
+    const KNOCKOUT_SYNC_URL = "";
+    const DESKTOP_STEP_PX = 310;
+    const MOBILE_STEP_PX = 176;
 
-  function normalizeSnapshotMatch(raw) {
-    const data = raw || {};
+    // New schema refs
+    const R32_MAPPING_COLLECTION = "R32mapping";
+    const R32_MAPPING_DOC_ID = "main";
+    const LIVE_COLLECTION = "__live";
+    const LIVE_BRACKET_DOC_ID = "knockoutBracket";
 
-    return {
-      team1: safeString(data.team1),
-      team2: safeString(data.team2),
-      score1: safeNumber(data.score1),
-      score2: safeNumber(data.score2),
-      status: normalizeMatchStatus(data.status),
-      winner: safeString(data.winner),
-      gameTime: safeString(data.gameTime),
-      updatedAtUtc: safeString(data.updatedAtUtc)
-    };
-  }
+    let refreshRuntime = null;
+    let idleRuntime = null;
+    let currentBracketWindow = 0;
+    let scrollSyncTimer = null;
+    let boundScrollEl = null;
 
-  function normalizeKnockoutSnapshot(raw) {
-    const data = raw || {};
-    const rawMatches = data.matches || {};
-    const matches = {};
+    function isMobileBracketView() { return window.matchMedia("(max-width: 640px)").matches; }
+    function getBracketStepPx() { return isMobileBracketView() ? MOBILE_STEP_PX : DESKTOP_STEP_PX; }
+    function getMaxBracketWindow() { return isMobileBracketView() ? 3 : 2; }
 
-    Object.keys(rawMatches).forEach(key => {
-      matches[String(key)] = normalizeSnapshotMatch(rawMatches[key]);
-    });
-
-    return {
-      source: safeString(data.source),
-      updatedAtUtc: safeString(data.updatedAtUtc),
-      fetchedAtUtc: safeString(data.fetchedAtUtc),
-      status: safeString(data.status) || "ok",
-      matches
-    };
-  }
-
-  async function loadKnockoutSnapshot(db) {
-    if (!db) {
-      throw new Error("loadKnockoutSnapshot: db is required");
-    }
-
-    const snap = await db.collection(SNAPSHOT_COLLECTION).doc(SNAPSHOT_DOC_ID).get();
-
-    if (!snap.exists) {
-      return normalizeKnockoutSnapshot({});
-    }
-
-    return normalizeKnockoutSnapshot(snap.data());
-  }
-
-  function getSnapshotMatch(snapshot, matchNumber) {
-    if (!snapshot || !snapshot.matches) return null;
-    return snapshot.matches[String(matchNumber)] || null;
-  }
-
-  function shouldTriggerSync({ minGapMs = 30 * 1000 } = {}) {
-    try {
-      const last = Number(localStorage.getItem(SYNC_THROTTLE_KEY) || "0");
-      const now = Date.now();
-
-      if (!last || now - last >= minGapMs) {
-        localStorage.setItem(SYNC_THROTTLE_KEY, String(now));
-        return true;
-      }
-
-      return false;
-    } catch (err) {
-      // If localStorage fails for any reason, do not block sync.
-      return true;
-    }
-  }
-
-  async function requestKnockoutSync(syncUrl, payload = {}, options = {}) {
-    const {
-      minGapMs = 30 * 1000,
-      force = false
-    } = options || {};
-
-    if (!syncUrl) return null;
-
-    if (!force && !shouldTriggerSync({ minGapMs })) {
-      return {
-        skipped: true,
-        reason: "throttled"
-      };
-    }
-
-    const res = await fetch(syncUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        requestedAtUtc: toIsoNow(),
-        ...payload
-      })
-    });
-
-    if (!res.ok) {
-      throw new Error(`requestKnockoutSync failed: ${res.status}`);
-    }
-
-    try {
-      return await res.json();
-    } catch (err) {
-      return { ok: true };
-    }
-  }
-
-  function getServerTimestampValue() {
-    try {
-      if (window.firebase && firebase.firestore && firebase.firestore.FieldValue) {
-        return firebase.firestore.FieldValue.serverTimestamp();
-      }
-    } catch (err) {}
-    return toIsoNow();
-  }
-
-  function getStaticMatches() {
-    return Array.isArray(window.R32matches) ? window.R32matches.slice() : [];
-  }
-
-  function toDateKey(d) {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    return `${y}${m}${day}`;
-  }
-
-  function getCandidateDateKeys(kickoffUtc) {
-    if (!kickoffUtc) return [];
-
-    const kickoff = new Date(kickoffUtc);
-    if (Number.isNaN(kickoff.getTime())) return [];
-
-    const sameDay = new Date(kickoff);
-    const prevDay = new Date(kickoff);
-    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
-
-    return [toDateKey(sameDay), toDateKey(prevDay)];
-  }
-
-  async function fetchScoreboardByDate(dateKey) {
-    const url = `${SCOREBOARD_BASE_URL}?dates=${dateKey}`;
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      throw new Error(`fetchScoreboardByDate failed: ${res.status}`);
-    }
-
-    const data = await res.json();
-    return Array.isArray(data && data.events) ? data.events : [];
-  }
-
-  async function fetchScoreboardEventsForMatch(match) {
-    const dateKeys = getCandidateDateKeys(match && match.kickoffUtc);
-
-    for (const dateKey of dateKeys) {
+    function getDbInstance() {
       try {
-        const events = await fetchScoreboardByDate(dateKey);
-        if (events.length) return events;
+        if (window.firebase && firebase.apps && firebase.apps.length) return firebase.firestore();
       } catch (err) {
-        console.error(`fetchScoreboardEventsForMatch failed for ${match && match.matchNumber}:`, err);
+        console.error("Failed to create Firestore instance:", err);
       }
-    }
-
-    return [];
-  }
-
-  function findEventByKickoff(events, match) {
-    const target = String((match && match.kickoffUtc) || "");
-    if (!target) return null;
-
-    for (const event of events || []) {
-      const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
-      const eventUtc = String((comp && comp.date) || event.date || "");
-      if (eventUtc && eventUtc === target) {
-        return event;
-      }
-    }
-
-    return null;
-  }
-
-  function isPlaceholderLike(value) {
-    const raw = normalizeText(value).toUpperCase();
-    if (!raw) return true;
-    if (raw === "TBD") return true;
-    if (/^(1|2)[A-L]$/.test(raw)) return true;
-    if (/^3RD\b/.test(raw)) return true;
-    if (/^RD32\b/.test(raw)) return true;
-    if (/^RD16\b/.test(raw)) return true;
-    if (/^QF\b/.test(raw)) return true;
-    if (/^SF\b/.test(raw)) return true;
-    if (/^(W|L)\d+$/.test(raw)) return true;
-    return false;
-  }
-
-  function canonicalizeTeamName(value) {
-    const raw = normalizeText(value);
-    if (!raw) return null;
-    if (isPlaceholderLike(raw)) return null;
-
-    const key = normalizeKey(raw);
-
-    // Use window.teams aliases when available.
-    const source = window.teams;
-    if (source) {
-      if (Array.isArray(source)) {
-        for (const team of source) {
-          if (!team) continue;
-          const canonical = normalizeText(team.name || team.fullName || team.teamName);
-          const aliases = [canonical, team.shortName, team.abbreviation, team.code, team.espn]
-            .map(normalizeText)
-            .filter(Boolean);
-          if (aliases.some(alias => normalizeKey(alias) === key)) {
-            return canonical || raw;
-          }
-        }
-      } else if (typeof source === "object") {
-        for (const teamKey of Object.keys(source)) {
-          const team = source[teamKey];
-          if (!team) continue;
-          if (typeof team === "string") {
-            if (normalizeKey(team) === key || normalizeKey(teamKey) === key) return team;
-            continue;
-          }
-          const canonical = normalizeText(team.name || team.fullName || team.teamName || teamKey);
-          const aliases = [canonical, team.shortName, team.abbreviation, team.code, team.espn, teamKey]
-            .map(normalizeText)
-            .filter(Boolean);
-          if (aliases.some(alias => normalizeKey(alias) === key)) {
-            return canonical || raw;
-          }
-        }
-      }
-    }
-
-    // Small safety aliases for common feed variations.
-    if (key === normalizeKey("South Korea") || key === normalizeKey("Republic of Korea")) {
-      return "Korea Republic";
-    }
-    if (key === normalizeKey("United States") || key === normalizeKey("United States of America")) {
-      return "USA";
-    }
-
-    return raw;
-  }
-
-  function getCompetitorsFromEvent(event) {
-    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
-    return comp && Array.isArray(comp.competitors) ? comp.competitors : [];
-  }
-
-  function orderCompetitors(competitors) {
-    if (!Array.isArray(competitors) || competitors.length < 2) return competitors || [];
-
-    const home = competitors.find(c => String(c && c.homeAway || "").toLowerCase() === "home");
-    const away = competitors.find(c => String(c && c.homeAway || "").toLowerCase() === "away");
-
-    if (home && away) return [home, away];
-    return competitors.slice(0, 2);
-  }
-
-  function getCompetitorCanonicalName(competitor) {
-    return canonicalizeTeamName(
-      competitor && competitor.team && (competitor.team.displayName || competitor.team.shortDisplayName || competitor.team.name)
-    );
-  }
-
-  function mapEspnStatus(event) {
-    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
-    const state = String(comp && comp.status && comp.status.type && comp.status.type.state || "").toLowerCase();
-    if (state === "post") return "complete";
-    if (state === "in") return "in_play";
-    return "scheduled";
-  }
-
-  function getEspnGameTime(event) {
-    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
-    const status = comp && comp.status;
-    if (!status || !status.type) return "";
-
-    const state = String(status.type.state || "").toLowerCase();
-    if (state === "in") {
-      return safeString(status.displayClock) || safeString(status.type.shortDetail) || safeString(status.type.detail) || "";
-    }
-
-    return safeString(status.type.shortDetail) || safeString(status.type.detail) || "";
-  }
-
-  function chooseWinnerName(event, side1Name, side2Name) {
-    const ordered = orderCompetitors(getCompetitorsFromEvent(event));
-    const c1 = ordered[0] || null;
-    const c2 = ordered[1] || null;
-
-    if (!c1 || !c2) return null;
-
-    if (c1.winner) return side1Name || getCompetitorCanonicalName(c1);
-    if (c2.winner) return side2Name || getCompetitorCanonicalName(c2);
-
-    const s1 = Number(c1.score);
-    const s2 = Number(c2.score);
-    if (Number.isFinite(s1) && Number.isFinite(s2)) {
-      if (s1 > s2) return side1Name || getCompetitorCanonicalName(c1);
-      if (s2 > s1) return side2Name || getCompetitorCanonicalName(c2);
-    }
-
-    return null;
-  }
-
-  function extractEventDataForMatch(event, snapshotMatch) {
-    const ordered = orderCompetitors(getCompetitorsFromEvent(event));
-    if (ordered.length < 2) return null;
-
-    const currentTeam1 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team1);
-    const currentTeam2 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team2);
-
-    let side1 = ordered[0];
-    let side2 = ordered[1];
-
-    const orderedNames = ordered.map(getCompetitorCanonicalName);
-
-    // If DB already knows one or both sides, align using team names when possible.
-    if (currentTeam1 || currentTeam2) {
-      const idx1 = currentTeam1 ? orderedNames.findIndex(n => normalizeKey(n) === normalizeKey(currentTeam1)) : -1;
-      const idx2 = currentTeam2 ? orderedNames.findIndex(n => normalizeKey(n) === normalizeKey(currentTeam2)) : -1;
-
-      if (idx1 === 1 && idx2 !== 0) {
-        side1 = ordered[1];
-        side2 = ordered[0];
-      } else if (idx2 === 0 && idx1 !== 1) {
-        side1 = ordered[1];
-        side2 = ordered[0];
-      }
-    }
-
-    const team1 = getCompetitorCanonicalName(side1);
-    const team2 = getCompetitorCanonicalName(side2);
-    const score1 = Number.isFinite(Number(side1 && side1.score)) ? Number(side1.score) : null;
-    const score2 = Number.isFinite(Number(side2 && side2.score)) ? Number(side2.score) : null;
-    const status = mapEspnStatus(event);
-    const gameTime = getEspnGameTime(event);
-    const winner = chooseWinnerName(event, team1, team2);
-
-    return {
-      team1,
-      team2,
-      score1,
-      score2,
-      status,
-      gameTime,
-      winner
-    };
-  }
-
-  function shouldFetchScore(match, snapshotMatch, nowUtcMs) {
-    const kickoff = new Date(match.kickoffUtc).getTime();
-    if (!Number.isFinite(kickoff)) return false;
-    if (nowUtcMs < kickoff) return false;
-
-    if (
-      snapshotMatch &&
-      snapshotMatch.status === "complete" &&
-      snapshotMatch.score1 != null &&
-      snapshotMatch.score2 != null
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
-  async function fetchEventDataForMatch(match, snapshotMatch, nowUtcMs) {
-    const shouldTryTeams = !normalizeText(snapshotMatch && snapshotMatch.team1) || !normalizeText(snapshotMatch && snapshotMatch.team2);
-    const shouldTryScores = shouldFetchScore(match, snapshotMatch, nowUtcMs);
-
-    if (!shouldTryTeams && !shouldTryScores) {
       return null;
     }
 
-    const events = await fetchScoreboardEventsForMatch(match);
-    if (!events.length) return null;
+    function getBracketScrollEl() { return document.querySelector("#bracketApp .bracket-scroll"); }
 
-    const event = findEventByKickoff(events, match);
-    if (!event) return null;
-
-    return extractEventDataForMatch(event, snapshotMatch);
-  }
-
-  function buildMatchPatch(snapshotMatch, espnData, nowIso) {
-    if (!espnData) return null;
-
-    const current = snapshotMatch || {};
-    const patch = {};
-
-    // Team fill only when DB slot is empty.
-    if (!current.team1 && espnData.team1) patch.team1 = espnData.team1;
-    if (!current.team2 && espnData.team2) patch.team2 = espnData.team2;
-
-    // Scores / status only if the game has actually started.
-    if (espnData.status && espnData.status !== "scheduled") {
-      if (espnData.score1 !== null && espnData.score1 !== current.score1) patch.score1 = espnData.score1;
-      if (espnData.score2 !== null && espnData.score2 !== current.score2) patch.score2 = espnData.score2;
-      if (espnData.status !== current.status) patch.status = espnData.status;
-      if (espnData.winner && espnData.winner !== current.winner) patch.winner = espnData.winner;
-      if (espnData.gameTime && espnData.gameTime !== current.gameTime) patch.gameTime = espnData.gameTime;
+    function getActiveLaneClasses() {
+      if (isMobileBracketView()) {
+        const mobileMap = [["lane-r32","lane-r16"],["lane-r16","lane-qf"],["lane-qf","lane-sf"],["lane-sf","lane-final"]];
+        return mobileMap[currentBracketWindow] || mobileMap[0];
+      }
+      const desktopMap = [["lane-r32","lane-r16","lane-qf"],["lane-r16","lane-qf","lane-sf"],["lane-qf","lane-sf","lane-final"]];
+      return desktopMap[currentBracketWindow] || desktopMap[0];
     }
 
-    if (!Object.keys(patch).length) return null;
+    function clampBracketWindow(value) { return Math.max(0, Math.min(getMaxBracketWindow(), value)); }
 
-    patch.updatedAtUtc = nowIso;
-    return patch;
-  }
-
-  async function syncKnockoutSnapshotClient(db, options = {}) {
-    if (!db) {
-      throw new Error("syncKnockoutSnapshotClient: db is required");
+    function applyBracketWindowClass() {
+      document.body.classList.remove("bracket-window-0","bracket-window-1","bracket-window-2","bracket-window-3");
+      document.body.classList.add("bracket-window-" + currentBracketWindow);
+      document.body.classList.toggle("bracket-mobile-view", isMobileBracketView());
     }
 
-    const staticMatches = options.staticMatches || getStaticMatches();
-    const snapshot = await loadKnockoutSnapshot(db);
-    const nowIso = toIsoNow();
-    const nowUtcMs = Date.now();
+    function updateBracketPaneHeight() {
+      const scrollEl = getBracketScrollEl();
+      if (!scrollEl) return;
+      const activeLaneClasses = getActiveLaneClasses();
+      let maxHeight = 0;
+      activeLaneClasses.forEach(function (cls) {
+        const laneEl = scrollEl.querySelector('.' + cls);
+        if (!laneEl) return;
+        maxHeight = Math.max(maxHeight, laneEl.scrollHeight);
+      });
+      scrollEl.style.height = maxHeight > 0 ? (maxHeight + 'px') : '';
+    }
 
-    const updates = {
-      source: "ESPN",
-      status: "ok",
-      fetchedAtUtc: nowIso,
-      updatedAtUtc: getServerTimestampValue()
-    };
+    function setBracketWindow(index) {
+      currentBracketWindow = clampBracketWindow(index);
+      applyBracketWindowClass();
+      requestAnimationFrame(updateBracketPaneHeight);
+    }
 
-    let changedMatchCount = 0;
-
-    for (const match of staticMatches) {
-      const matchNumber = String(match.matchNumber);
-      const snapshotMatch = getSnapshotMatch(snapshot, matchNumber) || null;
-
-      try {
-        const espnData = await fetchEventDataForMatch(match, snapshotMatch, nowUtcMs);
-        const patch = buildMatchPatch(snapshotMatch, espnData, nowIso);
-        if (!patch) continue;
-
-        Object.keys(patch).forEach(key => {
-          updates[`matches.${matchNumber}.${key}`] = patch[key];
-        });
-        changedMatchCount += 1;
-      } catch (err) {
-        console.error(`syncKnockoutSnapshotClient match ${matchNumber} error:`, err);
+    function syncBracketWindowFromScroll() {
+      const scrollEl = getBracketScrollEl();
+      if (!scrollEl) return;
+      const step = getBracketStepPx();
+      const computedIndex = Math.round(scrollEl.scrollLeft / step);
+      if (computedIndex !== currentBracketWindow) {
+        setBracketWindow(computedIndex);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     }
 
-    if (changedMatchCount > 0) {
-      await db.collection(SNAPSHOT_COLLECTION).doc(SNAPSHOT_DOC_ID).set(updates, { merge: true });
+    function updateBracketNavButtons() {
+      const scrollEl = getBracketScrollEl();
+      const leftBtn = document.getElementById("bracketLeftBtn");
+      const rightBtn = document.getElementById("bracketRightBtn");
+      if (!leftBtn || !rightBtn) return;
+      if (!scrollEl) { leftBtn.classList.add("is-hidden"); rightBtn.classList.add("is-hidden"); return; }
+      const maxScroll = scrollEl.scrollWidth - scrollEl.clientWidth;
+      const scrollLeft = scrollEl.scrollLeft;
+      if (maxScroll <= 2) { leftBtn.classList.add("is-hidden"); rightBtn.classList.add("is-hidden"); return; }
+      if (scrollLeft <= 2) leftBtn.classList.add("is-hidden"); else leftBtn.classList.remove("is-hidden");
+      if (scrollLeft >= maxScroll - 2) rightBtn.classList.add("is-hidden"); else rightBtn.classList.remove("is-hidden");
     }
 
-    return {
-      ok: true,
-      changedMatchCount,
-      fetchedAtClientUtc: toIsoNow()
-    };
-  }
+    function handleBracketScroll() {
+      updateBracketNavButtons();
+      if (scrollSyncTimer) clearTimeout(scrollSyncTimer);
+      scrollSyncTimer = setTimeout(function () { syncBracketWindowFromScroll(); }, 120);
+    }
 
-  async function loadR32Snapshot(db, options = {}) {
-    const {
-      syncUrl = "",
-      triggerSyncFirst = false,
-      syncPayload = {},
-      syncOptions = {}
-    } = options || {};
+    function attachBracketScrollListener() {
+      const scrollEl = getBracketScrollEl();
+      if (!scrollEl) return;
+      if (boundScrollEl && boundScrollEl !== scrollEl) boundScrollEl.removeEventListener("scroll", handleBracketScroll);
+      if (boundScrollEl !== scrollEl) {
+        scrollEl.addEventListener("scroll", handleBracketScroll, { passive: true });
+        boundScrollEl = scrollEl;
+      }
+    }
 
-    if (triggerSyncFirst) {
-      try {
-        if (syncUrl) {
-          await requestKnockoutSync(syncUrl, syncPayload, syncOptions);
-        } else {
-          await syncKnockoutSnapshotClient(db, {
-            staticMatches: getStaticMatches()
-          });
+    function scrollBracket(direction) {
+      const scrollEl = getBracketScrollEl();
+      if (!scrollEl) return;
+      const nextWindow = clampBracketWindow(currentBracketWindow + direction);
+      const step = getBracketStepPx();
+      setBracketWindow(nextWindow);
+      scrollEl.scrollTo({ left: nextWindow * step, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(function () { updateBracketNavButtons(); updateBracketPaneHeight(); }, 350);
+    }
+
+    function syncBracketToViewport() {
+      const scrollEl = getBracketScrollEl();
+      currentBracketWindow = clampBracketWindow(currentBracketWindow);
+      applyBracketWindowClass();
+      if (scrollEl) scrollEl.scrollLeft = currentBracketWindow * getBracketStepPx();
+      updateBracketNavButtons();
+      requestAnimationFrame(updateBracketPaneHeight);
+    }
+
+    function goToLanding() { window.location.href = "landing.html"; }
+    function logout() { localStorage.removeItem(SESSION_KEY); window.location.href = "index.html"; }
+
+    function buildTopbar() {
+      if (window.R32Utils && typeof R32Utils.renderTopbar === "function" && typeof R32Utils.makeButtonHtml === "function") {
+        const actionsHtml = [
+          R32Utils.makeButtonHtml({ label: "Leaderboard", onClick: "goToLanding()" }),
+          R32Utils.makeButtonHtml({ label: "Logout", onClick: "logout()" })
+        ].join("");
+        R32Utils.renderTopbar({ title: "Knockout Bracket", actionsHtml });
+        return;
+      }
+      const topbar = document.getElementById("topbar");
+      if (!topbar) return;
+      topbar.innerHTML = `
+        <div class="r32-topbar-inner">
+          <div class="r32-topbar-title">Knockout Bracket</div>
+          <div class="r32-topbar-actions">
+            <button class="r32-btn" onclick="goToLanding()">Leaderboard</button>
+            <button class="r32-btn" onclick="logout()">Logout</button>
+          </div>
+        </div>`;
+    }
+
+    function renderEmptyState(message) {
+      const app = document.getElementById("bracketApp");
+      if (!app) return;
+      app.innerHTML = `<div class="empty-state">${message}</div>`;
+      updateBracketNavButtons();
+    }
+
+    function cloneJson(value) {
+      return JSON.parse(JSON.stringify(value || null));
+    }
+
+    function buildPlacementToTeamLookup(mappingData) {
+      const lookup = {};
+      Object.entries(mappingData || {}).forEach(function ([teamName, data]) {
+        const placement = String(data && data.placement ? data.placement : "").trim();
+        if (!placement) return;
+        lookup[placement] = teamName;
+      });
+      return lookup;
+    }
+
+    function fillLiveBracketTeamsFromMapping(liveDocData, mappingData) {
+      const safeLive = cloneJson(liveDocData) || {};
+      safeLive.matches = safeLive.matches && typeof safeLive.matches === 'object' ? safeLive.matches : {};
+
+      const lookup = buildPlacementToTeamLookup(mappingData);
+      let didChange = false;
+
+      Object.keys(safeLive.matches).forEach(function (matchKey) {
+        const match = safeLive.matches[matchKey] || {};
+        const slot1 = String(match.slot1 || "").trim();
+        const slot2 = String(match.slot2 || "").trim();
+
+        if ((match.team1 == null || match.team1 === "") && slot1 && lookup[slot1]) {
+          match.team1 = lookup[slot1];
+          didChange = true;
         }
-      } catch (err) {
-        console.error("loadR32Snapshot sync trigger failed:", err);
-      }
-    }
-
-    const snapshot = await loadKnockoutSnapshot(db);
-
-    return {
-      snapshot,
-      fetchedAtClientUtc: toIsoNow()
-    };
-  }
-
-  function startR32AutoRefresh(config) {
-    const {
-      db,
-      syncUrl = "",
-      refreshMs = DEFAULT_REFRESH_MS,
-      triggerSyncOnStart = false,
-      triggerSyncOnRefresh = false,
-      syncPayload = {},
-      syncOptions = {},
-      onUpdate,
-      onError
-    } = config || {};
-
-    if (!db) {
-      throw new Error("startR32AutoRefresh: db is required");
-    }
-
-    let timer = null;
-    let stopped = false;
-
-    async function refresh(runOptions = {}) {
-      if (stopped) return null;
-
-      const useSync = !!runOptions.forceSync ||
-        (!!syncUrl && ((runOptions.isInitial && triggerSyncOnStart) || (!runOptions.isInitial && triggerSyncOnRefresh))) ||
-        (!syncUrl && ((runOptions.isInitial && triggerSyncOnStart) || (!runOptions.isInitial && triggerSyncOnRefresh)));
-
-      try {
-        const result = await loadR32Snapshot(db, {
-          syncUrl,
-          triggerSyncFirst: useSync,
-          syncPayload,
-          syncOptions
-        });
-
-        if (typeof onUpdate === "function") {
-          await onUpdate(result);
+        if ((match.team2 == null || match.team2 === "") && slot2 && lookup[slot2]) {
+          match.team2 = lookup[slot2];
+          didChange = true;
         }
 
-        return result;
-      } catch (err) {
-        console.error("startR32AutoRefresh refresh error:", err);
+        safeLive.matches[matchKey] = match;
+      });
 
-        if (typeof onError === "function") {
-          onError(err);
+      return { liveDocData: safeLive, didChange: didChange };
+    }
+	
+
+	function propagateWinners(matches) {
+
+	  let didChange = false;
+
+	  Object.keys(matches).forEach(function (matchKey) {
+
+		const match = matches[matchKey] || {};
+
+		// ---- team1 from Wxx ----
+		if ((match.team1 == null || match.team1 === "") &&
+			match.slot1 && match.slot1.startsWith("W")) {
+
+		  const prevMatchNum = match.slot1.replace("W", "");
+		  const prevMatch = matches[prevMatchNum] || matches[String(prevMatchNum)];
+
+		  if (prevMatch && prevMatch.winner) {
+			match.team1 = prevMatch.winner;
+			didChange = true;
+		  }
+		}
+
+		// ---- team2 from Wxx ----
+		if ((match.team2 == null || match.team2 === "") &&
+			match.slot2 && match.slot2.startsWith("W")) {
+
+		  const prevMatchNum = match.slot2.replace("W", "");
+		  const prevMatch = matches[prevMatchNum] || matches[String(prevMatchNum)];
+
+		  if (prevMatch && prevMatch.winner) {
+			match.team2 = prevMatch.winner;
+			didChange = true;
+		  }
+		}
+
+		matches[matchKey] = match;
+	  });
+
+	  return didChange;
+	}
+
+    function applyLiveBracketTeamsToMergedMatches(mergedMatches, liveDocData) {
+      const list = Array.isArray(mergedMatches) ? cloneJson(mergedMatches) : [];
+      const liveMatches = liveDocData && liveDocData.matches && typeof liveDocData.matches === 'object' ? liveDocData.matches : {};
+
+      list.forEach(function (match) {
+        const matchNumber = Number(match && (match.matchNumber != null ? match.matchNumber : match.matchNo != null ? match.matchNo : match.number != null ? match.number : match.id != null ? match.id : null));
+        if (!Number.isFinite(matchNumber)) return;
+
+        const liveMatch = liveMatches[String(matchNumber)] || liveMatches[matchNumber];
+        if (!liveMatch) return;
+
+        const team1 = liveMatch.team1 || null;
+        const team2 = liveMatch.team2 || null;
+        const slot1 = liveMatch.slot1 || match.slot1Label || null;
+        const slot2 = liveMatch.slot2 || match.slot2Label || null;
+
+        if (slot1 && !match.slot1Label) match.slot1Label = slot1;
+        if (slot2 && !match.slot2Label) match.slot2Label = slot2;
+
+        if (team1) {
+          match.team1 = team1;
+          match.slot1Team = team1;
+          match.homeTeam = team1;
+          match.homeName = team1;
         }
+        if (team2) {
+          match.team2 = team2;
+          match.slot2Team = team2;
+          match.awayTeam = team2;
+          match.awayName = team2;
+        }
+      });
 
-        throw err;
+      return list;
+    }
+
+    async function synchronizeBracketFromNewSchema(db, context) {
+      const mappingRef = db.collection(R32_MAPPING_COLLECTION).doc(R32_MAPPING_DOC_ID);
+      const liveRef = db.collection(LIVE_COLLECTION).doc(LIVE_BRACKET_DOC_ID);
+
+      const [mappingSnap, liveSnap] = await Promise.all([
+        mappingRef.get(),
+        liveRef.get()
+      ]);
+
+      const mappingData = mappingSnap.exists ? (mappingSnap.data() || {}) : {};
+      const liveDocData = liveSnap.exists ? (liveSnap.data() || {}) : {};
+
+      const syncResult = fillLiveBracketTeamsFromMapping(liveDocData, mappingData);
+	  
+	// ✅ NEW: propagate winners
+	const winnerChanged = propagateWinners(syncResult.liveDocData.matches);
+
+      if (syncResult.didChange || winnerChanged) {
+        await liveRef.set({
+          matches: syncResult.liveDocData.matches,
+          updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+
+      const nextContext = Object.assign({}, context || {});
+      nextContext.mergedMatches = applyLiveBracketTeamsToMergedMatches(context && context.mergedMatches, syncResult.liveDocData);
+      return nextContext;
+    }
+
+    function renderBracket(context) {
+      const app = document.getElementById("bracketApp");
+      const lastUpdatedText = document.getElementById("lastUpdatedText");
+      if (!app) return;
+      const mergedMatches = context && context.mergedMatches ? context.mergedMatches : [];
+      if (!mergedMatches.length) {
+        renderEmptyState("No knockout schedule found.");
+        if (lastUpdatedText) lastUpdatedText.textContent = "Last Updated: —";
+        return;
+      }
+      const boardSpec = [
+        { title: "Round of 32", laneClass: "lane-r32", matchNumbers: [74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87] },
+        { title: "Round of 16", laneClass: "lane-r16", matchNumbers: [89,90,93,94,91,92,95,96] },
+        { title: "Quarter-finals", laneClass: "lane-qf", matchNumbers: [97,98,99,100] },
+        { title: "Semi-finals", laneClass: "lane-sf", matchNumbers: [101,102] },
+        { title: "Final", laneClass: "lane-final", matchNumbers: [104,103] }
+      ];
+      app.innerHTML = R32MatchCards.buildBracketBoardHtml(boardSpec, mergedMatches);
+      applyBracketWindowClass();
+      attachBracketScrollListener();
+      requestAnimationFrame(function () { syncBracketToViewport(); });
+      if (lastUpdatedText) {
+        lastUpdatedText.textContent = `Last Updated: ${R32Utils.formatUpdatedAtEdt(context && context.fetchedAtClientUtc)}`;
       }
     }
 
-    refresh({ isInitial: true }).catch(() => {});
-
-    timer = setInterval(() => {
-      refresh({ isInitial: false }).catch(() => {});
-    }, refreshMs);
-
-    return {
-      stop() {
-        stopped = true;
-        if (timer) clearInterval(timer);
-      },
-
-      async refreshNow(forceSync = false) {
-        return refresh({ isInitial: false, forceSync });
+    function startPage() {
+      buildTopbar();
+      setBracketWindow(0);
+      if (!window.R32matches || !Array.isArray(window.R32matches) || !window.R32matches.length) {
+        renderEmptyState("matches.js loaded, but window.R32matches is missing or empty."); return;
       }
-    };
-  }
+      if (!window.R32FetchScores) { renderEmptyState("R32_fetchScores.js failed to load."); return; }
+      if (!window.R32Utils) { renderEmptyState("R32_utils.js failed to load."); return; }
+      if (!window.R32MatchCards) { renderEmptyState("R32_matchCards.js failed to load."); return; }
 
-  window.R32FetchScores = {
-    DEFAULT_REFRESH_MS,
-    SNAPSHOT_COLLECTION,
-    SNAPSHOT_DOC_ID,
-    SCOREBOARD_BASE_URL,
+      const dbInstance = getDbInstance();
+      if (!dbInstance) { renderEmptyState("firebase.js loaded, but Firestore db is not available."); return; }
 
-    normalizeSnapshotMatch,
-    normalizeKnockoutSnapshot,
+      idleRuntime = R32Utils.installIdleTimeout({ sessionKey: SESSION_KEY, redirectUrl: "index.html", idleMs: R32_IDLE_MS, checkMs: 60 * 1000 });
+      window.addEventListener("resize", function () { syncBracketToViewport(); });
 
-    loadKnockoutSnapshot,
-    getSnapshotMatch,
+      refreshRuntime = R32Utils.startR32PageRefresh({
+        db: dbInstance,
+        syncUrl: KNOCKOUT_SYNC_URL,
+        refreshMs: R32_REFRESH_MS,
+        triggerSyncOnStart: true,
+        triggerSyncOnRefresh: true,
+        onUpdate: async function (context) {
+          try {
+            const nextContext = await synchronizeBracketFromNewSchema(dbInstance, context || {});
+            renderBracket(nextContext);
+          } catch (err) {
+            console.error("R32 bracket schema sync error:", err);
+            renderBracket(context || {});
+          }
+        },
+        onError: function (err) { console.error("R32 bracket refresh error:", err); renderEmptyState("Failed to load knockout bracket."); }
+      });
+    }
 
-    shouldTriggerSync,
-    requestKnockoutSync,
-    syncKnockoutSnapshotClient,
-
-    loadR32Snapshot,
-    startR32AutoRefresh
-  };
-})();
+    startPage();
+  </script>
+</body>
+</html>
