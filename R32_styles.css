@@ -732,7 +732,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .match-head-left {
     flex: 0 0 auto;
     min-width: 0;
-    max-width: 42px; /* keep Match XX compact */
+//    max-width: 42px; /* keep Match XX compact */
   }
 
   .match-head-right {
