@@ -676,8 +676,6 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
 
   .bracket-scroll {
     max-width: var(--r32-bracket-visible-w);
-
-    /* snap panes */
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
   }
@@ -692,52 +690,52 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     margin-bottom: 10px;
   }
 
-  /* ------------------------------
-     Mobile floating nav buttons
-     Always vertically centered
-  ------------------------------ */
-  .bracket-nav-btn {
-    display: inline-flex !important;
-    position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 950;
-    width: 34px;
-    height: 34px;
-    font-size: 18px;
-    border-radius: 999px;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
-  }
-
-  .bracket-nav-btn-left {
-    left: 8px;
-  }
-
-  .bracket-nav-btn-right {
-    right: 8px;
-  }
-
   .match-card {
     height: 118px;
     padding: 7px 8px;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .match-head {
-    height: 30px;
-    gap: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
     margin-bottom: 5px;
-    align-items: flex-start;
-    overflow: visible;
+    height: 28px;
+    overflow: hidden;
+  }
+
+  .match-head-left {
+    flex: 0 0 auto;
+    min-width: 0;
   }
 
   .match-head-right {
-    max-width: 56%;
-    overflow: visible;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+
+    padding-left: 6px;
+    overflow: hidden;
   }
 
   .match-num {
     font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .match-status-wrap {
+    width: 100%;
+    justify-content: flex-start;
+    overflow: hidden;
   }
 
   .match-status {
@@ -746,19 +744,19 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     font-size: 9px;
   }
 
-  /* show full scheduled date/time */
   .match-live-time,
   .match-scheduled-time {
     font-size: 8px;
   }
 
   .match-scheduled-time {
-    white-space: normal;
-    overflow: visible;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
     text-overflow: clip;
-    max-width: none;
-    line-height: 1.15;
-    word-break: break-word;
+    width: 100%;
+    display: block;
+    line-height: 1.1;
   }
 
   .team-row {
@@ -833,5 +831,3 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     --lane-gap: 40px;
   }
 }
-``
-
