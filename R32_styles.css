@@ -720,9 +720,9 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
 
   .match-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
-    gap: 4px;
+    gap: 2px;
     margin-bottom: 5px;
     height: 28px;
     overflow: hidden;
@@ -731,23 +731,27 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .match-head-left {
     flex: 0 0 auto;
     min-width: 0;
+    max-width: 34px;
   }
 
   .match-head-right {
     flex: 1 1 auto;
     min-width: 0;
     max-width: none;
+
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    justify-content: center;
-    padding-left: 6px;
-    overflow: hidden;
+    justify-content: flex-start;
+
+    padding-left: 10px;
+    overflow: visible;
     text-align: left;
   }
 
   .match-num {
     font-size: 11px;
+    line-height: 1.05;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -756,7 +760,8 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .match-status-wrap {
     width: 100%;
     justify-content: flex-start;
-    overflow: hidden;
+    overflow: visible;
+    white-space: nowrap;
   }
 
   .match-status {
@@ -772,12 +777,13 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
 
   .match-scheduled-time {
     margin-top: 1px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip;
-    width: 100%;
     display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
     line-height: 1.1;
+    text-align: left;
   }
 
   .team-row {
