@@ -147,17 +147,22 @@
     const date = new Date(utc);
     if (Number.isNaN(date.getTime())) return "TBD";
 
-    const datePart = new Intl.DateTimeFormat("en-US", {
+    const weekday = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
-      weekday: "long",
-      month: "long",
+      weekday: "short"
+    }).format(date);
+
+    const monthDay = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "numeric",
       day: "numeric"
     }).format(date);
 
     const timePart = R32Utils.formatKickoffUtc(utc);
 
-    return `${datePart} ${timePart}`;
+    return `${weekday}, ${monthDay} ${timePart}`;
   }
+
 
   function buildMatchCardHtml(match) {
     const score1 = Number.isFinite(match.score1) ? match.score1 : "—";
