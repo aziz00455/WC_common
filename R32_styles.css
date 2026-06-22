@@ -203,7 +203,6 @@ button:disabled {
   margin: 0 auto;
 }
 
-/* Last updated row under topbar, aligned to browser left edge */
 .bracket-last-updated {
   margin: 0 0 14px 0;
   font-size: 11px;
@@ -264,6 +263,7 @@ button:disabled {
   padding-bottom: 10px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  transition: height 220ms ease;
 }
 
 .bracket-scroll::-webkit-scrollbar {
@@ -350,7 +350,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   --lane-gap: 40px;
 }
 
-/* Off-screen desktop lanes keep stable defaults */
+/* Stable defaults for off-screen lanes */
 .lane-r32 .bracket-lane-cards,
 .lane-r16 .bracket-lane-cards,
 .lane-qf .bracket-lane-cards,
@@ -690,6 +690,28 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     margin-bottom: 10px;
   }
 
+  /* Mobile floating nav buttons (keep current working behavior) */
+  .bracket-nav-btn {
+    display: inline-flex !important;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 950;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    border-radius: 999px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .bracket-nav-btn-left {
+    left: 8px;
+  }
+
+  .bracket-nav-btn-right {
+    right: 8px;
+  }
+
   .match-card {
     height: 118px;
     padding: 7px 8px;
@@ -715,14 +737,13 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     flex: 1 1 auto;
     min-width: 0;
     max-width: none;
-
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-
     padding-left: 6px;
     overflow: hidden;
+    text-align: left;
   }
 
   .match-num {
@@ -788,9 +809,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     font-size: 13px;
   }
 
-  /* ------------------------------
-     Mobile windows: 2 lanes visible
-  ------------------------------ */
+  /* Mobile windows: 2 lanes visible */
   body.bracket-window-0 .lane-r32 .bracket-lane-cards {
     --lane-pad-top: var(--mobile-slot1-pad);
     --lane-gap: var(--mobile-slot1-gap);
