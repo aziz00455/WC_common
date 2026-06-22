@@ -210,9 +210,7 @@ button:disabled {
   font-weight: normal;
   color: #666;
   line-height: 1.2;
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  padding-left: 12px;
+  text-align: center;
 }
 
 /* ------------------------------
@@ -244,11 +242,11 @@ button:disabled {
 }
 
 .bracket-nav-btn-left {
-  left: calc(50% - 500px + 6px);
+  left: calc(50% - 500px + 50px);
 }
 
 .bracket-nav-btn-right {
-  right: calc(50% - 500px + 6px);
+  right: calc(50% - 500px + 50px);
 }
 
 .bracket-nav-btn.is-hidden {
@@ -611,6 +609,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .bracket-last-updated {
     margin-bottom: 12px;
     padding-left: 12px;
+    text-align: center; /* ✅ stays centered as you updated */
   }
 
   .bracket-nav-btn {
@@ -647,10 +646,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
 
 /* ------------------------------
    Mobile: 2 visible lanes
-   Best-fit choice:
-   lane width = 160px
-   lane gap   = 16px
-   total      = 336px (fits cleanly on 360px phones with padding)
+   + SNAP BEHAVIOR
 ------------------------------ */
 @media (max-width: 640px) {
   :root {
@@ -675,6 +671,16 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
 
   .bracket-scroll {
     max-width: var(--r32-bracket-visible-w);
+
+    /* ✅ SNAP BEHAVIOR */
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+  }
+
+  /* ✅ SNAP TARGET */
+  .bracket-lane {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .bracket-lane-title {
@@ -741,7 +747,9 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     font-size: 13px;
   }
 
-  /* Mobile windows: 2 lanes visible */
+  /* ------------------------------
+     Mobile windows (2-lane mapping)
+  ------------------------------ */
   body.bracket-window-0 .lane-r32 .bracket-lane-cards {
     --lane-pad-top: var(--mobile-slot1-pad);
     --lane-gap: var(--mobile-slot1-gap);
@@ -782,3 +790,4 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     --lane-gap: 40px;
   }
 }
+
