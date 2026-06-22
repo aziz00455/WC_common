@@ -609,7 +609,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .bracket-last-updated {
     margin-bottom: 12px;
     padding-left: 12px;
-    text-align: center; /* ✅ stays centered as you updated */
+    text-align: center;
   }
 
   .bracket-nav-btn {
@@ -665,6 +665,11 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     padding: 12px 12px 20px;
   }
 
+  .bracket-last-updated {
+    text-align: center;
+    padding-left: 0;
+  }
+
   .bracket-stage {
     max-width: var(--r32-bracket-visible-w);
   }
@@ -672,12 +677,11 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   .bracket-scroll {
     max-width: var(--r32-bracket-visible-w);
 
-    /* ✅ SNAP BEHAVIOR */
+    /* snap panes */
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
   }
 
-  /* ✅ SNAP TARGET */
   .bracket-lane {
     scroll-snap-align: start;
     scroll-snap-stop: always;
@@ -688,19 +692,48 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     margin-bottom: 10px;
   }
 
+  /* ------------------------------
+     Mobile floating nav buttons
+     Always vertically centered
+  ------------------------------ */
+  .bracket-nav-btn {
+    display: inline-flex !important;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 950;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    border-radius: 999px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .bracket-nav-btn-left {
+    left: 8px;
+  }
+
+  .bracket-nav-btn-right {
+    right: 8px;
+  }
+
   .match-card {
     height: 118px;
     padding: 7px 8px;
+    overflow: visible;
   }
 
   .match-head {
-    height: 28px;
+    height: 30px;
     gap: 6px;
     margin-bottom: 5px;
+    align-items: flex-start;
+    overflow: visible;
   }
 
   .match-head-right {
-    max-width: 54%;
+    max-width: 56%;
+    overflow: visible;
   }
 
   .match-num {
@@ -713,9 +746,19 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     font-size: 9px;
   }
 
+  /* show full scheduled date/time */
   .match-live-time,
   .match-scheduled-time {
     font-size: 8px;
+  }
+
+  .match-scheduled-time {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: none;
+    line-height: 1.15;
+    word-break: break-word;
   }
 
   .team-row {
@@ -748,7 +791,7 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
   }
 
   /* ------------------------------
-     Mobile windows (2-lane mapping)
+     Mobile windows: 2 lanes visible
   ------------------------------ */
   body.bracket-window-0 .lane-r32 .bracket-lane-cards {
     --lane-pad-top: var(--mobile-slot1-pad);
@@ -790,4 +833,5 @@ body.bracket-window-2 .lane-final .bracket-lane-cards {
     --lane-gap: 40px;
   }
 }
+``
 
