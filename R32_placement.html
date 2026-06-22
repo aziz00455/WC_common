@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>R32 Placement</title>
+
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --line: #dde3ea;
+      --text: #18212b;
+      --muted: #667282;
+      --accent: #0f6cbd;
+      --accent-dark: #0a57a0;
+      --danger: #c62828;
+      --ok: #197a3e;
+      --warn: #9a6700;
+      --shadow: 0 8px 30px rgba(0,0,0,0.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 18px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn:hover { background: #f7f9fc; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+      border-color: var(--accent-dark);
+    }
+
+    .page {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+    }
+
+    .panel p, .panel li {
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 6px 0;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .summary-card {
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .summary-card .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .summary-card .value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .statusbar {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .status-text { color: var(--muted); font-size: 14px; }
+    .status-text.ok { color: var(--ok); font-weight: 700; }
+    .status-text.err { color: var(--danger); font-weight: 700; }
+    .status-text.warn { color: var(--warn); font-weight: 700; }
+
+    .db-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .db-chip {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #fbfcfe;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .db-chip strong {
+      display: block;
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .group-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 16px;
+      background: #f9fbff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .group-head h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 99px;
+      background: #e8f1fb;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .team-list {
+      padding: 8px 12px 12px;
+    }
+
+    .team-row {
+      display: grid;
+      grid-template-columns: 1.2fr 90px minmax(220px, 270px);
+      gap: 10px;
+      align-items: center;
+      padding: 10px 6px;
+      border-bottom: 1px solid #eef2f7;
+    }
+
+    .team-row:last-child { border-bottom: none; }
+
+    .team-name {
+      font-weight: 700;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .team-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .rank {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .placement-select {
+      width: 100%;
+      min-height: 40px;
+      padding: 0 10px;
+      border-radius: 10px;
+      border: 1px solid #cad5e2;
+      background: #fff;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .placement-select.saving {
+      border-color: #f0ad4e;
+      background: #fff8e8;
+    }
+
+    .placement-select.saved {
+      border-color: #99d6ae;
+      background: #f3fff8;
+    }
+
+    .placement-select.error {
+      border-color: #e0a9a9;
+      background: #fff5f5;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 1100px) {
+      .hero { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .db-list { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .topbar { padding: 10px 12px; }
+      .topbar h1 { font-size: 18px; }
+      .page { padding: 12px; }
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+      .team-row { grid-template-columns: 1fr; }
+      .rank { text-align: left; }
+    }
+  </style>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="./teams.js"></script>
+  <script src="./matches.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>R32 Placement</h1>
+    <div class="topbar-right">
+      <button id="resetPopulateBtn" class="btn btn-primary" type="button">Reset &amp; Repopulate</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div class="panel">
+        <h2>Manual placement page</h2>
+        <p>This page uses a team-keyed <strong>R32mapping / main</strong> document and writes the same structure to all 3 Firebase projects.</p>
+        <ul>
+          <li><strong>R32mapping / main</strong> format: <strong>Germany: { placement, player }</strong></li>
+          <li><strong>__live / knockoutBracket</strong> is rebuilt by the button with match slots filled from <strong>window.R32matches</strong> and all other fields set to <strong>null</strong></li>
+          <li><strong>FIFA rank</strong> is displayed from <strong>teams.js</strong> only and is not stored in Firestore</li>
+          <li>Dropdown choices are restricted to each team’s group: <strong>1X</strong>, <strong>2X</strong>, valid <strong>3RD ...</strong> labels, <strong>Eliminated</strong>, and <strong>Unassigned</strong></li>
+        </ul>
+        <div class="db-list">
+          <div class="db-chip"><strong>WC2026_DEV</strong>Project: wc2026-dev-3c9d9<br>Writes: R32mapping / main + __live / knockoutBracket</div>
+          <div class="db-chip"><strong>WC2026_PRD</strong>Project: wc2026-prd<br>Writes: R32mapping / main + __live / knockoutBracket</div>
+          <div class="db-chip"><strong>WC2026F_PRD</strong>Project: wc-2026f-prd<br>Writes: R32mapping / main + __live / knockoutBracket</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Current snapshot</h2>
+        <div class="summary">
+          <div class="summary-card"><div class="label">Teams</div><div id="sumTeams" class="value">0</div></div>
+          <div class="summary-card"><div class="label">Assigned</div><div id="sumAssigned" class="value">0</div></div>
+          <div class="summary-card"><div class="label">Eliminated</div><div id="sumEliminated" class="value">0</div></div>
+          <div class="summary-card"><div class="label">Unassigned</div><div id="sumUnassigned" class="value">0</div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="statusbar">
+      <div id="statusText" class="status-text">Loading teams and mapping…</div>
+      <div class="status-text">Target docs: <strong>R32mapping / main</strong> and <strong>__live / knockoutBracket</strong> in all 3 projects</div>
+    </div>
+
+    <section id="groupsGrid" class="grid"></section>
+    <div class="footer-note">Standalone page. No firebase.js dependency. Writes to DEV + PRD + F_PRD together.</div>
+  </main>
+
+  <script>
+    const firebaseConfigDev = {
+      apiKey: "AIzaSyAtdZiJvZrfKlvr_vbBQpvW-G_-WODA8A4",
+      authDomain: "wc2026-dev-3c9d9.firebaseapp.com",
+      projectId: "wc2026-dev-3c9d9",
+      storageBucket: "wc2026-dev-3c9d9.firebasestorage.app",
+      messagingSenderId: "84899128450",
+      appId: "1:84899128450:web:f5947a9805a3551abf409b",
+      measurementId: "G-5YTPX7Z6HC"
+    };
+    const GAME_ID_DEV = "WC2026_DEV";
+
+    const firebaseConfigPrd = {
+      apiKey: "AIzaSyCddw-B6fRbAQ7bdKBhCup-RSqewYD9PeA",
+      authDomain: "wc2026-prd.firebaseapp.com",
+      projectId: "wc2026-prd",
+      storageBucket: "wc2026-prd.firebasestorage.app",
+      messagingSenderId: "998282277656",
+      appId: "1:998282277656:web:466a8efd85c8217c20e46d",
+      measurementId: "G-5TQ671ZHQ4"
+    };
+    const GAME_ID_PRD = "WC2026_PRD";
+
+    const firebaseConfigFPrd = {
+      apiKey: "AIzaSyAYn3EvDLaUfxxxFx_2Y__5SvX-Z4m1G7Q",
+      authDomain: "wc-2026f-prd.firebaseapp.com",
+      projectId: "wc-2026f-prd",
+      storageBucket: "wc-2026f-prd.firebasestorage.app",
+      messagingSenderId: "1041886294433",
+      appId: "1:1041886294433:web:b1372700d85644d0f59be0",
+      measurementId: "G-KP1T2TYZYB"
+    };
+    const GAME_ID_F_PRD = "WC2026F_PRD";
+
+    const appDev = firebase.apps.find(app => app.name === GAME_ID_DEV) || firebase.initializeApp(firebaseConfigDev, GAME_ID_DEV);
+    const appPrd = firebase.apps.find(app => app.name === GAME_ID_PRD) || firebase.initializeApp(firebaseConfigPrd, GAME_ID_PRD);
+    const appFPrd = firebase.apps.find(app => app.name === GAME_ID_F_PRD) || firebase.initializeApp(firebaseConfigFPrd, GAME_ID_F_PRD);
+
+    const dbDev = appDev.firestore();
+    const dbPrd = appPrd.firestore();
+    const dbFPrd = appFPrd.firestore();
+
+    const TARGETS = [
+      { gameId: GAME_ID_DEV, projectId: firebaseConfigDev.projectId, db: dbDev },
+      { gameId: GAME_ID_PRD, projectId: firebaseConfigPrd.projectId, db: dbPrd },
+      { gameId: GAME_ID_F_PRD, projectId: firebaseConfigFPrd.projectId, db: dbFPrd },
+    ];
+
+    const COLLECTION_NAME = "R32mapping";
+    const DOC_ID = "main";
+    const LIVE_COLLECTION = "__live";
+    const BRACKET_DOC_ID = "knockoutBracket";
+    const ELIMINATED = "ELIMINATED";
+    const GROUP_ORDER = "ABCDEFGHIJKL".split("");
+
+    const statusTextEl = document.getElementById("statusText");
+    const groupsGridEl = document.getElementById("groupsGrid");
+    const resetPopulateBtn = document.getElementById("resetPopulateBtn");
+
+    const sumTeamsEl = document.getElementById("sumTeams");
+    const sumAssignedEl = document.getElementById("sumAssigned");
+    const sumEliminatedEl = document.getElementById("sumEliminated");
+    const sumUnassignedEl = document.getElementById("sumUnassigned");
+
+    const state = {
+      teams: [],
+      mapping: {},
+      thirdPlaceSlots: [],
+      groupSourceSummary: "",
+    };
+
+    function setStatus(message, type = "") {
+      statusTextEl.textContent = message;
+      statusTextEl.className = `status-text ${type}`.trim();
+    }
+
+    function normalizeGroupLetter(value) {
+      if (value == null) return "";
+      const s = String(value).trim().toUpperCase();
+      const m = s.match(/^GROUP\s*([A-L])$/i) || s.match(/^([A-L])$/i);
+      return m ? m[1].toUpperCase() : "";
+    }
+
+    function normalizeTeamName(name) {
+      return String(name || "")
+        .replace(/\s+/g, " ")
+        .replace(/[’']/g, "'")
+        .trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getTeamsObject() {
+      return (window.teams && typeof window.teams === "object") ? window.teams : {};
+    }
+
+    function getAllTeamNames() {
+      return Object.keys(getTeamsObject()).map(normalizeTeamName);
+    }
+
+    function buildTeamAliasMap() {
+      const aliases = new Map();
+      for (const teamName of getAllTeamNames()) {
+        const team = getTeamsObject()[teamName] || {};
+        const values = [teamName, team.short, team.espn, team.name, team.country, team.team].filter(Boolean);
+        for (const value of values) {
+          aliases.set(normalizeTeamName(value), teamName);
+        }
+      }
+      return aliases;
+    }
+
+    function resolveTeamName(raw, aliasMap) {
+      const normalized = normalizeTeamName(raw);
+      return aliasMap.get(normalized) || "";
+    }
+
+    function collectMatchLikeObjects(root, into = [], seen = new Set()) {
+      if (!root || seen.has(root)) return into;
+      if (typeof root !== "object") return into;
+      seen.add(root);
+
+      if (Array.isArray(root)) {
+        for (const item of root) collectMatchLikeObjects(item, into, seen);
+        return into;
+      }
+
+      const looksLikeMatch = (
+        "group" in root || "Group" in root || "groupLetter" in root || "group_name" in root ||
+        "home" in root || "away" in root || "team1" in root || "team2" in root ||
+        "homeTeam" in root || "awayTeam" in root
+      );
+      if (looksLikeMatch) into.push(root);
+
+      for (const value of Object.values(root)) {
+        if (value && typeof value === "object") collectMatchLikeObjects(value, into, seen);
+      }
+      return into;
+    }
+
+    function findMatchCollections() {
+      const candidates = [];
+      const directNames = ["matches", "allMatches", "groupMatches", "GROUP_MATCHES", "MATCHES", "wcMatches", "WorldCupMatches"];
+      for (const name of directNames) {
+        if (window[name]) candidates.push({ name, value: window[name] });
+      }
+      for (const [key, value] of Object.entries(window)) {
+        if (!value) continue;
+        if (!/match/i.test(key)) continue;
+        if (typeof value !== "object") continue;
+        candidates.push({ name: key, value });
+      }
+      return candidates;
+    }
+
+    function extractTeamCandidatesFromMatch(match) {
+      const out = [];
+      const fields = [
+        match.home, match.away,
+        match.team1, match.team2,
+        match.homeTeam, match.awayTeam,
+        match.homeName, match.awayName,
+        match.teamA, match.teamB,
+        match.slot1Team, match.slot2Team
+      ];
+      for (const value of fields) {
+        if (typeof value === "string") out.push(value);
+        else if (value && typeof value === "object") {
+          const nested = [value.name, value.team, value.shortName, value.displayName];
+          nested.filter(v => typeof v === "string").forEach(v => out.push(v));
+        }
+      }
+      return out;
+    }
+
+    function buildGroupMap() {
+      const aliasMap = buildTeamAliasMap();
+      const teamsObj = getTeamsObject();
+      const groupMap = new Map();
+      let sourceName = "";
+
+      for (const [teamName, data] of Object.entries(teamsObj)) {
+        const group = normalizeGroupLetter(data?.group);
+        if (group) groupMap.set(normalizeTeamName(teamName), group);
+      }
+      if (groupMap.size) sourceName = "teams.js";
+
+      const matchCollections = findMatchCollections();
+      for (const candidate of matchCollections) {
+        const flattened = collectMatchLikeObjects(candidate.value);
+        let hits = 0;
+        for (const match of flattened) {
+          const group = normalizeGroupLetter(match.group || match.Group || match.groupLetter || match.group_name);
+          if (!group) continue;
+          const teamNames = extractTeamCandidatesFromMatch(match);
+          for (const raw of teamNames) {
+            const resolved = resolveTeamName(raw, aliasMap);
+            if (resolved) {
+              groupMap.set(resolved, group);
+              hits += 1;
+            }
+          }
+        }
+        if (hits > 0) {
+          sourceName = candidate.name;
+          break;
+        }
+      }
+
+      state.groupSourceSummary = sourceName || "";
+      return groupMap;
+    }
+
+    function buildTeams() {
+      const teamsObj = getTeamsObject();
+      const groupMap = buildGroupMap();
+      const arr = Object.entries(teamsObj).map(([name, data]) => ({
+        name: normalizeTeamName(name),
+        group: groupMap.get(normalizeTeamName(name)) || "",
+        FIFArank: data?.rank ?? data?.FIFArank ?? data?.fifaRank ?? null,
+      }));
+
+      arr.sort((a, b) => {
+        const ai = GROUP_ORDER.indexOf(a.group);
+        const bi = GROUP_ORDER.indexOf(b.group);
+        const aOrder = ai === -1 ? 999 : ai;
+        const bOrder = bi === -1 ? 999 : bi;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        const aRank = a.FIFArank == null || Number.isNaN(Number(a.FIFArank)) ? 999 : Number(a.FIFArank);
+        const bRank = b.FIFArank == null || Number.isNaN(Number(b.FIFArank)) ? 999 : Number(b.FIFArank);
+        if (aRank !== bRank) return aRank - bRank;
+        return a.name.localeCompare(b.name);
+      });
+
+      return arr;
+    }
+
+    function buildThirdPlaceSlots() {
+      const set = new Set();
+      const source = Array.isArray(window.R32matches) ? window.R32matches : [];
+      source.forEach(match => {
+        [match?.slot1Label, match?.slot2Label].forEach(label => {
+          const text = String(label || "").trim();
+          if (/^3RD\s+/i.test(text)) set.add(text);
+        });
+      });
+
+      return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
+    function getThirdPlaceGroups(slotLabel) {
+      return String(slotLabel || "")
+        .replace(/^3RD\s+/i, "")
+        .split("/")
+        .map(normalizeGroupLetter)
+        .filter(Boolean);
+    }
+
+    function optionsForGroup(group) {
+      const options = [];
+      if (group) {
+        options.push({ value: `1${group}`, label: `1${group}` });
+        options.push({ value: `2${group}`, label: `2${group}` });
+        state.thirdPlaceSlots.forEach(slot => {
+          if (getThirdPlaceGroups(slot).includes(group)) {
+            options.push({ value: slot, label: slot });
+          }
+        });
+      }
+      options.push({ value: ELIMINATED, label: "Eliminated" });
+      options.push({ value: "", label: "Unassigned" });
+      return options;
+    }
+
+    function buildEmptyMappingFromTeams() {
+      const out = {};
+      for (const team of state.teams) {
+        out[team.name] = { placement: null, player: null };
+      }
+      return out;
+    }
+
+    async function loadPrimaryMapping() {
+      const snap = await dbDev.collection(COLLECTION_NAME).doc(DOC_ID).get();
+      const baseline = buildEmptyMappingFromTeams();
+      const raw = snap.exists ? (snap.data() || {}) : {};
+      for (const team of state.teams) {
+        const prev = raw[team.name] || {};
+        baseline[team.name] = {
+          placement: prev.placement ?? null,
+          player: prev.player ?? null,
+        };
+      }
+      state.mapping = baseline;
+    }
+
+    function buildPlacementOwnershipMap() {
+      const owner = new Map();
+      for (const [teamName, teamData] of Object.entries(state.mapping || {})) {
+        const placement = teamData?.placement;
+        if (!placement || placement === ELIMINATED) continue;
+        owner.set(String(placement), teamName);
+      }
+      return owner;
+    }
+
+    function updateSummary() {
+      const total = state.teams.length;
+      let assigned = 0;
+      let eliminated = 0;
+      let unassigned = 0;
+      for (const team of state.teams) {
+        const placement = state.mapping?.[team.name]?.placement ?? null;
+        if (!placement) unassigned += 1;
+        else if (placement === ELIMINATED) eliminated += 1;
+        else assigned += 1;
+      }
+      sumTeamsEl.textContent = String(total);
+      sumAssignedEl.textContent = String(assigned);
+      sumEliminatedEl.textContent = String(eliminated);
+      sumUnassignedEl.textContent = String(unassigned);
+    }
+
+    function render() {
+      const ownership = buildPlacementOwnershipMap();
+      const groupBuckets = new Map();
+      GROUP_ORDER.forEach(g => groupBuckets.set(g, []));
+      state.teams.forEach(team => {
+        if (GROUP_ORDER.includes(team.group)) {
+          groupBuckets.get(team.group).push(team);
+        }
+      });
+
+      groupsGridEl.innerHTML = GROUP_ORDER.map(group => {
+        const teams = groupBuckets.get(group);
+        const rows = teams.map(team => {
+          const currentPlacement = state.mapping?.[team.name]?.placement ?? "";
+          const options = optionsForGroup(group).map(opt => {
+            const owner = opt.value ? ownership.get(opt.value) : null;
+            const takenByOtherTeam = opt.value && opt.value !== ELIMINATED && owner && owner !== team.name;
+            const suffix = takenByOtherTeam ? ` — currently ${owner}` : "";
+            const selected = currentPlacement === opt.value ? "selected" : "";
+            return `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label + suffix)}</option>`;
+          }).join("");
+
+          return `
+            <div class="team-row">
+              <div>
+                <div class="team-name" title="${escapeHtml(team.name)}">${escapeHtml(team.name)}</div>
+                <div class="team-meta">Group ${escapeHtml(group)}</div>
+              </div>
+              <div class="rank">FIFA ${team.FIFArank ?? "-"}</div>
+              <div>
+                <select class="placement-select" data-team="${escapeHtml(team.name)}">
+                  ${options}
+                </select>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        return `
+          <section class="group-card">
+            <div class="group-head">
+              <h3>Group ${escapeHtml(group)}</h3>
+              <span class="pill">${teams.length} teams</span>
+            </div>
+            <div class="team-list">${rows}</div>
+          </section>
+        `;
+      }).join("");
+
+      groupsGridEl.querySelectorAll(".placement-select").forEach(select => {
+        select.addEventListener("change", onPlacementChange);
+      });
+
+      updateSummary();
+    }
+
+    async function writeMappingToAllTargets(nextMapping) {
+      const results = await Promise.allSettled(
+        TARGETS.map(target => target.db.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }))
+      );
+      const failed = results
+        .map((result, index) => ({ result, target: TARGETS[index] }))
+        .filter(item => item.result.status === "rejected");
+      if (failed.length) {
+        const summary = failed.map(item => `${item.target.gameId} (${item.target.projectId})`).join(", ");
+        throw new Error(`Write failed in: ${summary}`);
+      }
+    }
+
+    async function writeBracketToAllTargets(bracketDoc) {
+      const results = await Promise.allSettled(
+        TARGETS.map(target => target.db.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(bracketDoc, { merge: false }))
+      );
+      const failed = results
+        .map((result, index) => ({ result, target: TARGETS[index] }))
+        .filter(item => item.result.status === "rejected");
+      if (failed.length) {
+        const summary = failed.map(item => `${item.target.gameId} (${item.target.projectId})`).join(", ");
+        throw new Error(`Write failed in: ${summary}`);
+      }
+    }
+
+    function buildInitialBracketDoc() {
+      const source = Array.isArray(window.R32matches) ? window.R32matches : [];
+      if (!source.length) {
+        throw new Error("window.R32matches is missing or empty.");
+      }
+
+      const matches = {};
+      source.forEach(item => {
+        const matchNumber = Number(item?.matchNumber);
+        const slot1 = String(item?.slot1Label || "").trim();
+        const slot2 = String(item?.slot2Label || "").trim();
+        if (!Number.isFinite(matchNumber) || !slot1 || !slot2) return;
+
+        matches[matchNumber] = {
+          matchNumber,
+          slot1,
+          slot2,
+          team1: null,
+          team2: null,
+          gameTime: null,
+          score1: null,
+          score2: null,
+          status: null,
+          winner: null,
+        };
+      });
+
+      if (!Object.keys(matches).length) {
+        throw new Error("No valid matches were found in window.R32matches.");
+      }
+
+      return {
+        matches,
+        updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+    }
+
+    async function onPlacementChange(event) {
+      const select = event.target;
+      const teamName = select.dataset.team;
+      const newPlacement = select.value || null;
+      const prevPlacement = state.mapping?.[teamName]?.placement ?? null;
+      if (!teamName) return;
+
+      select.classList.remove("saved", "error");
+      select.classList.add("saving");
+      setStatus(`Saving ${teamName} to all 3 databases…`);
+
+      try {
+        const nextData = { ...(state.mapping || {}) };
+        if (!nextData[teamName]) nextData[teamName] = { placement: null, player: null };
+
+        if (newPlacement && newPlacement !== ELIMINATED) {
+          for (const [otherTeam, data] of Object.entries(nextData)) {
+            if (otherTeam !== teamName && data?.placement === newPlacement) {
+              nextData[otherTeam] = {
+                placement: null,
+                player: data?.player ?? null,
+              };
+            }
+          }
+        }
+
+        nextData[teamName] = {
+          placement: newPlacement,
+          player: nextData[teamName]?.player ?? null,
+        };
+
+        await writeMappingToAllTargets(nextData);
+        state.mapping = nextData;
+        render();
+
+        const readable = newPlacement == null ? "Unassigned" : (newPlacement === ELIMINATED ? "Eliminated" : newPlacement);
+        setStatus(`${teamName}: ${readable} saved to DEV + PRD + F_PRD`, "ok");
+
+        const refreshedSelect = groupsGridEl.querySelector(`.placement-select[data-team="${CSS.escape(teamName)}"]`);
+        if (refreshedSelect) {
+          refreshedSelect.classList.add("saved");
+          setTimeout(() => refreshedSelect.classList.remove("saved"), 1000);
+        }
+      } catch (error) {
+        console.error(error);
+        select.value = prevPlacement ?? "";
+        select.classList.add("error");
+        setStatus(`Save failed: ${error?.message || error}`, "err");
+      } finally {
+        select.classList.remove("saving");
+      }
+    }
+
+    async function resetAndRepopulate() {
+      const ok = window.confirm("This will overwrite R32mapping/main and __live/knockoutBracket in DEV, PRD, and F_PRD. Continue?");
+      if (!ok) return;
+
+      try {
+        resetPopulateBtn.disabled = true;
+        setStatus("Resetting R32mapping/main and repopulating __live/knockoutBracket in all 3 databases…");
+
+        const nextMapping = buildEmptyMappingFromTeams();
+        const bracketDoc = buildInitialBracketDoc();
+
+        await Promise.all([
+          writeMappingToAllTargets(nextMapping),
+          writeBracketToAllTargets(bracketDoc),
+        ]);
+
+        state.mapping = nextMapping;
+        render();
+
+        const matchCount = Object.keys(bracketDoc.matches || {}).length;
+        setStatus(`Reset complete: ${state.teams.length} teams in R32mapping/main and ${matchCount} matches in __live/knockoutBracket across DEV + PRD + F_PRD.`, "ok");
+      } catch (error) {
+        console.error(error);
+        setStatus(`Reset/repopulate failed: ${error?.message || error}`, "err");
+      } finally {
+        resetPopulateBtn.disabled = false;
+      }
+    }
+
+    async function initializePage() {
+      state.teams = buildTeams();
+      state.thirdPlaceSlots = buildThirdPlaceSlots();
+
+      if (!state.teams.length) {
+        setStatus("No teams found in teams.js.", "err");
+        return;
+      }
+
+      await loadPrimaryMapping();
+      render();
+
+      const missingGroups = state.teams.filter(team => !GROUP_ORDER.includes(team.group)).length;
+      if (missingGroups > 0) {
+        const sourceText = state.groupSourceSummary ? ` Group info source: ${state.groupSourceSummary}.` : "";
+        setStatus(`Loaded ${state.teams.length} teams, but ${missingGroups} team(s) do not have a valid group A-L.${sourceText}`, "warn");
+      } else {
+        const sourceText = state.groupSourceSummary ? ` Group info source: ${state.groupSourceSummary}.` : "";
+        setStatus(`Loaded ${state.teams.length} teams and current mapping.${sourceText}`, "ok");
+      }
+    }
+
+    resetPopulateBtn.addEventListener("click", resetAndRepopulate);
+
+    initializePage().catch(error => {
+      console.error(error);
+      setStatus(`Initialization failed: ${error?.message || error}`, "err");
+    });
+  </script>
+</body>
+</html>

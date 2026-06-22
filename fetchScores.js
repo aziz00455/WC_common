@@ -1,64 +1,173 @@
-// ====================================================
-// fetchScores.js (DB-BACKED SCORE FETCH MODULE)
-// ====================================================
+/* =========================================================
+   R32_fetchScores.js
+   Knockout-stage-only data loading / refresh helpers
+   Client-side scoreboard sync only
+   No dependency on fetchScores.js or utils.js
+========================================================= */
 (function () {
-  const SCOREBOARD_BASE_URL =
-    "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
+  const DEFAULT_REFRESH_MS = 10 * 60 * 1000;
 
-  // ✅ bump this whenever you deploy a schema / writer logic change
-  const SCORE_WRITER_VERSION = 2;
+  // Firestore doc that stores the latest normalized knockout snapshot
+  const SNAPSHOT_COLLECTION = "__live";
+  const SNAPSHOT_DOC_ID = "knockoutBracket";
 
-  function normalize(str) {
-    return (str || "")
+  // ESPN site API (same source family used by the working group-stage fetchScores.js)
+  const SCOREBOARD_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
+
+  // Local throttle key for optional sync trigger
+  const SYNC_THROTTLE_KEY = "r32_knockout_sync_last_attempt_utc";
+
+  function toIsoNow() {
+    return new Date().toISOString();
+  }
+
+  function safeNumber(value) {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function safeString(value) {
+    return typeof value === "string" ? value : null;
+  }
+
+  function normalizeText(value) {
+    return String(value || "").trim();
+  }
+
+  function normalizeKey(value) {
+    return normalizeText(value)
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")
-      .trim();
+      .replace(/[^a-z0-9]/g, "");
   }
 
-  // ✅ find matching ESPN event
-  function findMatch(event, match) {
-    const comp = event.competitions?.[0];
-    if (!comp) return false;
+  function normalizeMatchStatus(status) {
+    const s = String(status || "").trim().toLowerCase();
 
-    const teamsInEvent = comp.competitors || [];
-    if (teamsInEvent.length < 2) return false;
-
-    const names = teamsInEvent.map(t => normalize(t.team.displayName));
-
-    const espn1 = normalize(teams[match.team1]?.espn || match.team1);
-    const espn2 = normalize(teams[match.team2]?.espn || match.team2);
-
-    return names.includes(espn1) && names.includes(espn2);
+    if (s === "in_play") return "in_play";
+    if (s === "complete") return "complete";
+    return "scheduled";
   }
 
-  // ✅ extract result from ESPN event
-  function extractScores(event, match) {
-    const comp = event.competitions?.[0];
-    if (!comp) return null;
-
-    const teamsInEvent = comp.competitors || [];
-
-    const espn1 = normalize(teams[match.team1]?.espn || match.team1);
-    const espn2 = normalize(teams[match.team2]?.espn || match.team2);
-
-    let score1 = null;
-    let score2 = null;
-
-    teamsInEvent.forEach(t => {
-      const nameNorm = normalize(t.team.displayName);
-
-      if (nameNorm === espn1) score1 = Number(t.score);
-      if (nameNorm === espn2) score2 = Number(t.score);
-    });
+  function normalizeSnapshotMatch(raw) {
+    const data = raw || {};
 
     return {
-      score1,
-      score2,
-      status: event.status?.type?.completed ? "complete" : "in_play"
+      team1: safeString(data.team1),
+      team2: safeString(data.team2),
+      score1: safeNumber(data.score1),
+      score2: safeNumber(data.score2),
+      status: normalizeMatchStatus(data.status),
+      winner: safeString(data.winner),
+      gameTime: safeString(data.gameTime),
+      updatedAtUtc: safeString(data.updatedAtUtc)
     };
   }
 
-  // ✅ helper: YYYYMMDD from Date
+  function normalizeKnockoutSnapshot(raw) {
+    const data = raw || {};
+    const rawMatches = data.matches || {};
+    const matches = {};
+
+    Object.keys(rawMatches).forEach(key => {
+      matches[String(key)] = normalizeSnapshotMatch(rawMatches[key]);
+    });
+
+    return {
+      source: safeString(data.source),
+      updatedAtUtc: safeString(data.updatedAtUtc),
+      fetchedAtUtc: safeString(data.fetchedAtUtc),
+      status: safeString(data.status) || "ok",
+      matches
+    };
+  }
+
+  async function loadKnockoutSnapshot(db) {
+    if (!db) {
+      throw new Error("loadKnockoutSnapshot: db is required");
+    }
+
+    const snap = await db.collection(SNAPSHOT_COLLECTION).doc(SNAPSHOT_DOC_ID).get();
+
+    if (!snap.exists) {
+      return normalizeKnockoutSnapshot({});
+    }
+
+    return normalizeKnockoutSnapshot(snap.data());
+  }
+
+  function getSnapshotMatch(snapshot, matchNumber) {
+    if (!snapshot || !snapshot.matches) return null;
+    return snapshot.matches[String(matchNumber)] || null;
+  }
+
+  function shouldTriggerSync({ minGapMs = 30 * 1000 } = {}) {
+    try {
+      const last = Number(localStorage.getItem(SYNC_THROTTLE_KEY) || "0");
+      const now = Date.now();
+
+      if (!last || now - last >= minGapMs) {
+        localStorage.setItem(SYNC_THROTTLE_KEY, String(now));
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      // If localStorage fails for any reason, do not block sync.
+      return true;
+    }
+  }
+
+  async function requestKnockoutSync(syncUrl, payload = {}, options = {}) {
+    const {
+      minGapMs = 30 * 1000,
+      force = false
+    } = options || {};
+
+    if (!syncUrl) return null;
+
+    if (!force && !shouldTriggerSync({ minGapMs })) {
+      return {
+        skipped: true,
+        reason: "throttled"
+      };
+    }
+
+    const res = await fetch(syncUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        requestedAtUtc: toIsoNow(),
+        ...payload
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`requestKnockoutSync failed: ${res.status}`);
+    }
+
+    try {
+      return await res.json();
+    } catch (err) {
+      return { ok: true };
+    }
+  }
+
+  function getServerTimestampValue() {
+    try {
+      if (window.firebase && firebase.firestore && firebase.firestore.FieldValue) {
+        return firebase.firestore.FieldValue.serverTimestamp();
+      }
+    } catch (err) {}
+    return toIsoNow();
+  }
+
+  function getStaticMatches() {
+    return Array.isArray(window.R32matches) ? window.R32matches.slice() : [];
+  }
+
   function toDateKey(d) {
     const y = d.getUTCFullYear();
     const m = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -66,9 +175,11 @@
     return `${y}${m}${day}`;
   }
 
-  // ✅ helper: use kickoff UTC date + previous UTC date
   function getCandidateDateKeys(kickoffUtc) {
+    if (!kickoffUtc) return [];
+
     const kickoff = new Date(kickoffUtc);
+    if (Number.isNaN(kickoff.getTime())) return [];
 
     const sameDay = new Date(kickoff);
     const prevDay = new Date(kickoff);
@@ -77,101 +188,230 @@
     return [toDateKey(sameDay), toDateKey(prevDay)];
   }
 
-  // ✅ fetch raw result from ESPN for one match
-  async function fetchScoreForMatch(match) {
-    try {
-      const dateKeys = getCandidateDateKeys(match.kickoffUtc);
+  async function fetchScoreboardByDate(dateKey) {
+    const url = `${SCOREBOARD_BASE_URL}?dates=${dateKey}`;
+    const res = await fetch(url);
 
-      for (const dateKey of dateKeys) {
-        const url = `${SCOREBOARD_BASE_URL}?dates=${dateKey}`;
+    if (!res.ok) {
+      throw new Error(`fetchScoreboardByDate failed: ${res.status}`);
+    }
 
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.error(`fetchScoreForMatch HTTP error ${res.status} for ${match.id}`);
-          continue;
+    const data = await res.json();
+    return Array.isArray(data && data.events) ? data.events : [];
+  }
+
+  async function fetchScoreboardEventsForMatch(match) {
+    const dateKeys = getCandidateDateKeys(match && match.kickoffUtc);
+
+    for (const dateKey of dateKeys) {
+      try {
+        const events = await fetchScoreboardByDate(dateKey);
+        if (events.length) return events;
+      } catch (err) {
+        console.error(`fetchScoreboardEventsForMatch failed for ${match && match.matchNumber}:`, err);
+      }
+    }
+
+    return [];
+  }
+
+  function findEventByKickoff(events, match) {
+    const target = String((match && match.kickoffUtc) || "");
+    if (!target) return null;
+
+    for (const event of events || []) {
+      const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
+      const eventUtc = String((comp && comp.date) || event.date || "");
+      if (eventUtc && eventUtc === target) {
+        return event;
+      }
+    }
+
+    return null;
+  }
+
+  function isPlaceholderLike(value) {
+    const raw = normalizeText(value).toUpperCase();
+    if (!raw) return true;
+    if (raw === "TBD") return true;
+    if (/^(1|2)[A-L]$/.test(raw)) return true;
+    if (/^3RD\b/.test(raw)) return true;
+    if (/^RD32\b/.test(raw)) return true;
+    if (/^RD16\b/.test(raw)) return true;
+    if (/^QF\b/.test(raw)) return true;
+    if (/^SF\b/.test(raw)) return true;
+    if (/^(W|L)\d+$/.test(raw)) return true;
+    return false;
+  }
+
+  function canonicalizeTeamName(value) {
+    const raw = normalizeText(value);
+    if (!raw) return null;
+    if (isPlaceholderLike(raw)) return null;
+
+    const key = normalizeKey(raw);
+
+    // Use window.teams aliases when available.
+    const source = window.teams;
+    if (source) {
+      if (Array.isArray(source)) {
+        for (const team of source) {
+          if (!team) continue;
+          const canonical = normalizeText(team.name || team.fullName || team.teamName);
+          const aliases = [canonical, team.shortName, team.abbreviation, team.code, team.espn]
+            .map(normalizeText)
+            .filter(Boolean);
+          if (aliases.some(alias => normalizeKey(alias) === key)) {
+            return canonical || raw;
+          }
         }
-
-        const data = await res.json();
-        const events = data.events || [];
-
-        for (const event of events) {
-          if (findMatch(event, match)) {
-            return extractScores(event, match);
+      } else if (typeof source === "object") {
+        for (const teamKey of Object.keys(source)) {
+          const team = source[teamKey];
+          if (!team) continue;
+          if (typeof team === "string") {
+            if (normalizeKey(team) === key || normalizeKey(teamKey) === key) return team;
+            continue;
+          }
+          const canonical = normalizeText(team.name || team.fullName || team.teamName || teamKey);
+          const aliases = [canonical, team.shortName, team.abbreviation, team.code, team.espn, teamKey]
+            .map(normalizeText)
+            .filter(Boolean);
+          if (aliases.some(alias => normalizeKey(alias) === key)) {
+            return canonical || raw;
           }
         }
       }
-
-      return null;
-    } catch (err) {
-      console.error(`fetchScoreForMatch error for ${match.id}:`, err);
-      return null;
     }
+
+    // Small safety aliases for common feed variations.
+    if (key === normalizeKey("South Korea") || key === normalizeKey("Republic of Korea")) {
+      return "Korea Republic";
+    }
+    if (key === normalizeKey("United States") || key === normalizeKey("United States of America")) {
+      return "USA";
+    }
+
+    return raw;
   }
 
-  // ✅ load current match results doc
-  async function loadMatchResultsDoc() {
-    try {
-      const doc = await db.collection("matchResults").doc("main").get();
-      return doc.exists ? doc.data() : {};
-    } catch (err) {
-      console.error("loadMatchResultsDoc error:", err);
-      return {};
-    }
+  function getCompetitorsFromEvent(event) {
+    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
+    return comp && Array.isArray(comp.competitors) ? comp.competitors : [];
   }
 
-  // ✅ load current match results map only
-  async function loadMatchResults() {
-    try {
-      const docData = await loadMatchResultsDoc();
-      return docData.results || {};
-    } catch (err) {
-      console.error("loadMatchResults error:", err);
-      return {};
-    }
+  function orderCompetitors(competitors) {
+    if (!Array.isArray(competitors) || competitors.length < 2) return competitors || [];
+
+    const home = competitors.find(c => String(c && c.homeAway || "").toLowerCase() === "home");
+    const away = competitors.find(c => String(c && c.homeAway || "").toLowerCase() === "away");
+
+    if (home && away) return [home, away];
+    return competitors.slice(0, 2);
   }
 
-  // ✅ save results with version gate
-  async function saveMatchResults(results) {
-    try {
-      const docRef = db.collection("matchResults").doc("main");
-      const snap = await docRef.get();
-      const currentData = snap.exists ? snap.data() : {};
+  function getCompetitorCanonicalName(competitor) {
+    return canonicalizeTeamName(
+      competitor && competitor.team && (competitor.team.displayName || competitor.team.shortDisplayName || competitor.team.name)
+    );
+  }
 
-      const currentWriterVersion = currentData.writerVersion || 0;
+  function mapEspnStatus(event) {
+    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
+    const state = String(comp && comp.status && comp.status.type && comp.status.type.state || "").toLowerCase();
+    if (state === "post") return "complete";
+    if (state === "in") return "in_play";
+    return "scheduled";
+  }
 
-      // ✅ block stale cached clients
-      if (currentWriterVersion > SCORE_WRITER_VERSION) {
-        console.warn(
-          `Blocked write from stale client. Current writerVersion=${currentWriterVersion}, this client=${SCORE_WRITER_VERSION}`
-        );
-        return false;
+  function getEspnGameTime(event) {
+    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
+    const status = comp && comp.status;
+    if (!status || !status.type) return "";
+
+    const state = String(status.type.state || "").toLowerCase();
+    if (state === "in") {
+      return safeString(status.displayClock) || safeString(status.type.shortDetail) || safeString(status.type.detail) || "";
+    }
+
+    return safeString(status.type.shortDetail) || safeString(status.type.detail) || "";
+  }
+
+  function chooseWinnerName(event, side1Name, side2Name) {
+    const ordered = orderCompetitors(getCompetitorsFromEvent(event));
+    const c1 = ordered[0] || null;
+    const c2 = ordered[1] || null;
+
+    if (!c1 || !c2) return null;
+
+    if (c1.winner) return side1Name || getCompetitorCanonicalName(c1);
+    if (c2.winner) return side2Name || getCompetitorCanonicalName(c2);
+
+    const s1 = Number(c1.score);
+    const s2 = Number(c2.score);
+    if (Number.isFinite(s1) && Number.isFinite(s2)) {
+      if (s1 > s2) return side1Name || getCompetitorCanonicalName(c1);
+      if (s2 > s1) return side2Name || getCompetitorCanonicalName(c2);
+    }
+
+    return null;
+  }
+
+  function extractEventDataForMatch(event, snapshotMatch) {
+    const ordered = orderCompetitors(getCompetitorsFromEvent(event));
+    if (ordered.length < 2) return null;
+
+    const currentTeam1 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team1);
+    const currentTeam2 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team2);
+
+    let side1 = ordered[0];
+    let side2 = ordered[1];
+
+    const orderedNames = ordered.map(getCompetitorCanonicalName);
+
+    // If DB already knows one or both sides, align using team names when possible.
+    if (currentTeam1 || currentTeam2) {
+      const idx1 = currentTeam1 ? orderedNames.findIndex(n => normalizeKey(n) === normalizeKey(currentTeam1)) : -1;
+      const idx2 = currentTeam2 ? orderedNames.findIndex(n => normalizeKey(n) === normalizeKey(currentTeam2)) : -1;
+
+      if (idx1 === 1 && idx2 !== 0) {
+        side1 = ordered[1];
+        side2 = ordered[0];
+      } else if (idx2 === 0 && idx1 !== 1) {
+        side1 = ordered[1];
+        side2 = ordered[0];
       }
-
-      await docRef.set({
-        writerVersion: SCORE_WRITER_VERSION,
-        results
-      });
-
-      return true;
-    } catch (err) {
-      console.error("saveMatchResults error:", err);
-      throw err;
     }
+
+    const team1 = getCompetitorCanonicalName(side1);
+    const team2 = getCompetitorCanonicalName(side2);
+    const score1 = Number.isFinite(Number(side1 && side1.score)) ? Number(side1.score) : null;
+    const score2 = Number.isFinite(Number(side2 && side2.score)) ? Number(side2.score) : null;
+    const status = mapEspnStatus(event);
+    const gameTime = getEspnGameTime(event);
+    const winner = chooseWinnerName(event, team1, team2);
+
+    return {
+      team1,
+      team2,
+      score1,
+      score2,
+      status,
+      gameTime,
+      winner
+    };
   }
 
-  // ✅ should we fetch this match?
-  function shouldFetchScore(match, resultDoc, serverNow) {
+  function shouldFetchScore(match, snapshotMatch, nowUtcMs) {
     const kickoff = new Date(match.kickoffUtc).getTime();
+    if (!Number.isFinite(kickoff)) return false;
+    if (nowUtcMs < kickoff) return false;
 
-    // do not fetch before kickoff
-    if (serverNow < kickoff) return false;
-
-    // already completed with scores saved
     if (
-      resultDoc &&
-      (resultDoc.status === "complete" || resultDoc.status === "completed") &&
-      resultDoc.score1 != null &&
-      resultDoc.score2 != null
+      snapshotMatch &&
+      snapshotMatch.status === "complete" &&
+      snapshotMatch.score1 != null &&
+      snapshotMatch.score2 != null
     ) {
       return false;
     }
@@ -179,110 +419,212 @@
     return true;
   }
 
-  // ✅ backward-compatible function
-  async function maybeFetchScore(match, resultDoc = null, serverNow = null) {
-    try {
-      const resolvedServerNow =
-        serverNow != null ? serverNow : await fetchServerTime(db);
+  async function fetchEventDataForMatch(match, snapshotMatch, nowUtcMs) {
+    const shouldTryTeams = !normalizeText(snapshotMatch && snapshotMatch.team1) || !normalizeText(snapshotMatch && snapshotMatch.team2);
+    const shouldTryScores = shouldFetchScore(match, snapshotMatch, nowUtcMs);
 
-      let resolvedResultDoc = resultDoc;
-      if (resolvedResultDoc == null) {
-        const results = await loadMatchResults();
-        resolvedResultDoc = results[match.id] || null;
-      }
-
-      if (!shouldFetchScore(match, resolvedResultDoc, resolvedServerNow)) {
-        return null;
-      }
-
-      return await fetchScoreForMatch(match);
-    } catch (err) {
-      console.error(`maybeFetchScore error for ${match.id}:`, err);
+    if (!shouldTryTeams && !shouldTryScores) {
       return null;
     }
+
+    const events = await fetchScoreboardEventsForMatch(match);
+    if (!events.length) return null;
+
+    const event = findEventByKickoff(events, match);
+    if (!event) return null;
+
+    return extractEventDataForMatch(event, snapshotMatch);
   }
 
-  // ✅ main DB-backed API for pages
-  async function ensureScoresUpToDate(matchesList = matches) {
-    try {
-      const serverNow = await fetchServerTime(db);
-      const results = await loadMatchResults();
+  function buildMatchPatch(snapshotMatch, espnData, nowIso) {
+    if (!espnData) return null;
 
-      let updated = false;
+    const current = snapshotMatch || {};
+    const patch = {};
 
-      for (const match of matchesList) {
-        const resultDoc = results[match.id] || null;
+    // Team fill only when DB slot is empty.
+    if (!current.team1 && espnData.team1) patch.team1 = espnData.team1;
+    if (!current.team2 && espnData.team2) patch.team2 = espnData.team2;
 
-        if (!shouldFetchScore(match, resultDoc, serverNow)) {
-          continue;
+    // Scores / status only if the game has actually started.
+    if (espnData.status && espnData.status !== "scheduled") {
+      if (espnData.score1 !== null && espnData.score1 !== current.score1) patch.score1 = espnData.score1;
+      if (espnData.score2 !== null && espnData.score2 !== current.score2) patch.score2 = espnData.score2;
+      if (espnData.status !== current.status) patch.status = espnData.status;
+      if (espnData.winner && espnData.winner !== current.winner) patch.winner = espnData.winner;
+      if (espnData.gameTime && espnData.gameTime !== current.gameTime) patch.gameTime = espnData.gameTime;
+    }
+
+    if (!Object.keys(patch).length) return null;
+
+    patch.updatedAtUtc = nowIso;
+    return patch;
+  }
+
+  async function syncKnockoutSnapshotClient(db, options = {}) {
+    if (!db) {
+      throw new Error("syncKnockoutSnapshotClient: db is required");
+    }
+
+    const staticMatches = options.staticMatches || getStaticMatches();
+    const snapshot = await loadKnockoutSnapshot(db);
+    const nowIso = toIsoNow();
+    const nowUtcMs = Date.now();
+
+    const updates = {
+      source: "ESPN",
+      status: "ok",
+      fetchedAtUtc: nowIso,
+      updatedAtUtc: getServerTimestampValue()
+    };
+
+    let changedMatchCount = 0;
+
+    for (const match of staticMatches) {
+      const matchNumber = String(match.matchNumber);
+      const snapshotMatch = getSnapshotMatch(snapshot, matchNumber) || null;
+
+      try {
+        const espnData = await fetchEventDataForMatch(match, snapshotMatch, nowUtcMs);
+        const patch = buildMatchPatch(snapshotMatch, espnData, nowIso);
+        if (!patch) continue;
+
+        Object.keys(patch).forEach(key => {
+          updates[`matches.${matchNumber}.${key}`] = patch[key];
+        });
+        changedMatchCount += 1;
+      } catch (err) {
+        console.error(`syncKnockoutSnapshotClient match ${matchNumber} error:`, err);
+      }
+    }
+
+    if (changedMatchCount > 0) {
+      await db.collection(SNAPSHOT_COLLECTION).doc(SNAPSHOT_DOC_ID).set(updates, { merge: true });
+    }
+
+    return {
+      ok: true,
+      changedMatchCount,
+      fetchedAtClientUtc: toIsoNow()
+    };
+  }
+
+  async function loadR32Snapshot(db, options = {}) {
+    const {
+      syncUrl = "",
+      triggerSyncFirst = false,
+      syncPayload = {},
+      syncOptions = {}
+    } = options || {};
+
+    if (triggerSyncFirst) {
+      try {
+        if (syncUrl) {
+          await requestKnockoutSync(syncUrl, syncPayload, syncOptions);
+        } else {
+          await syncKnockoutSnapshotClient(db, {
+            staticMatches: getStaticMatches()
+          });
+        }
+      } catch (err) {
+        console.error("loadR32Snapshot sync trigger failed:", err);
+      }
+    }
+
+    const snapshot = await loadKnockoutSnapshot(db);
+
+    return {
+      snapshot,
+      fetchedAtClientUtc: toIsoNow()
+    };
+  }
+
+  function startR32AutoRefresh(config) {
+    const {
+      db,
+      syncUrl = "",
+      refreshMs = DEFAULT_REFRESH_MS,
+      triggerSyncOnStart = false,
+      triggerSyncOnRefresh = false,
+      syncPayload = {},
+      syncOptions = {},
+      onUpdate,
+      onError
+    } = config || {};
+
+    if (!db) {
+      throw new Error("startR32AutoRefresh: db is required");
+    }
+
+    let timer = null;
+    let stopped = false;
+
+    async function refresh(runOptions = {}) {
+      if (stopped) return null;
+
+      const useSync = !!runOptions.forceSync ||
+        (!!syncUrl && ((runOptions.isInitial && triggerSyncOnStart) || (!runOptions.isInitial && triggerSyncOnRefresh))) ||
+        (!syncUrl && ((runOptions.isInitial && triggerSyncOnStart) || (!runOptions.isInitial && triggerSyncOnRefresh)));
+
+      try {
+        const result = await loadR32Snapshot(db, {
+          syncUrl,
+          triggerSyncFirst: useSync,
+          syncPayload,
+          syncOptions
+        });
+
+        if (typeof onUpdate === "function") {
+          await onUpdate(result);
         }
 
-        const fetched = await fetchScoreForMatch(match);
+        return result;
+      } catch (err) {
+        console.error("startR32AutoRefresh refresh error:", err);
 
-        if (!fetched) continue;
-				
-		const prevScore1 = resultDoc?.score1 ?? null;
-		const prevScore2 = resultDoc?.score2 ?? null;
-		const prevStatus = resultDoc?.status ?? null;
+        if (typeof onError === "function") {
+          onError(err);
+        }
 
-		const changed =
-		  prevScore1 !== fetched.score1 ||
-		  prevScore2 !== fetched.score2 ||
-		  prevStatus !== fetched.status;
-
-		// ✅ Case 1: fetched successfully but no change → still update lastUpdatedUtc
-		if (!changed) {
-		  results[match.id] = {
-			...resultDoc,
-			lastUpdatedUtc: new Date(serverNow).toISOString() // ✅ SERVER TIME ONLY
-		  };
-		  updated = true;
-		  continue;
-		}
-
-		// ✅ Case 2: score/status changed → overwrite
-		results[match.id] = {
-		  score1: fetched.score1,
-		  score2: fetched.score2,
-		  status: fetched.status,
-		  lastUpdatedUtc: new Date(serverNow).toISOString() // ✅ SERVER TIME ONLY
-		};
-
-        updated = true;
+        throw err;
       }
-
-      if (updated) {
-        await saveMatchResults(results);
-      }
-
-      return {
-        results,
-        serverNow
-      };
-    } catch (err) {
-      console.error("ensureScoresUpToDate error:", err);
-      return {
-        results: {},
-        serverNow: Date.now()
-      };
     }
+
+    refresh({ isInitial: true }).catch(() => {});
+
+    timer = setInterval(() => {
+      refresh({ isInitial: false }).catch(() => {});
+    }, refreshMs);
+
+    return {
+      stop() {
+        stopped = true;
+        if (timer) clearInterval(timer);
+      },
+
+      async refreshNow(forceSync = false) {
+        return refresh({ isInitial: false, forceSync });
+      }
+    };
   }
 
-  // ✅ optional helper if page just wants one map read
-  async function getResultsWithServerTime() {
-    const [results, serverNow] = await Promise.all([
-      loadMatchResults(),
-      fetchServerTime(db)
-    ]);
+  window.R32FetchScores = {
+    DEFAULT_REFRESH_MS,
+    SNAPSHOT_COLLECTION,
+    SNAPSHOT_DOC_ID,
+    SCOREBOARD_BASE_URL,
 
-    return { results, serverNow };
-  }
+    normalizeSnapshotMatch,
+    normalizeKnockoutSnapshot,
 
-  // expose public API
-  window.fetchScoreForMatch = fetchScoreForMatch;
-  window.maybeFetchScore = maybeFetchScore;
-  window.loadMatchResults = loadMatchResults;
-  window.saveMatchResults = saveMatchResults;
-  window.ensureScoresUpToDate = ensureScoresUpToDate;
-  window.getResultsWithServerTime = getResultsWithServerTime;
+    loadKnockoutSnapshot,
+    getSnapshotMatch,
+
+    shouldTriggerSync,
+    requestKnockoutSync,
+    syncKnockoutSnapshotClient,
+
+    loadR32Snapshot,
+    startR32AutoRefresh
+  };
 })();
