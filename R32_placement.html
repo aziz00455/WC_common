@@ -318,7 +318,10 @@
   <header class="topbar">
     <h1>R32 Placement</h1>
     <div class="topbar-right">
-      <button id="resetPopulateBtn" class="btn btn-primary" type="button">Reset &amp; Repopulate</button>
+      <button id="clearBtn" class="btn" type="button">Clear</button>
+      <button id="randomPopulateBtn" class="btn" type="button">Random +6</button>
+      <button id="copyPrdBtn" class="btn btn-primary" type="button">Copy to 2026_PRD</button>
+      <button id="copyFPrdBtn" class="btn btn-primary" type="button">Copy to 2026F_PRD</button>
     </div>
   </header>
 
@@ -326,17 +329,18 @@
     <section class="hero">
       <div class="panel">
         <h2>Manual placement page</h2>
-        <p>This page uses a team-keyed <strong>R32mapping / main</strong> document and writes the same structure to all 3 Firebase projects.</p>
+        <p>This page now writes directly to <strong>WC2026_DEV</strong> only. Use the copy buttons to push the current DEV snapshot to <strong>WC2026_PRD</strong> or <strong>WC2026F_PRD</strong>.</p>
         <ul>
           <li><strong>R32mapping / main</strong> format: <strong>Germany: { placement, player }</strong></li>
-          <li><strong>__live / knockoutBracket</strong> is rebuilt by the button with match slots filled from <strong>window.R32matches</strong> and all other fields set to <strong>null</strong></li>
+          <li><strong>__live / knockoutBracket</strong> is rebuilt by <strong>Clear</strong> with match slots filled from <strong>window.R32matches</strong> and all other fields set to <strong>null</strong></li>
           <li><strong>FIFA rank</strong> is displayed from <strong>teams.js</strong> only and is not stored in Firestore</li>
           <li>Dropdown choices are restricted to each team’s group: <strong>1X</strong>, <strong>2X</strong>, valid <strong>3RD ...</strong> labels, <strong>Eliminated</strong>, and <strong>Unassigned</strong></li>
+          <li><strong>Random +6</strong> fills one batch of <strong>4 qualifying teams + 2 eliminated teams</strong> using only currently unassigned teams</li>
         </ul>
         <div class="db-list">
-          <div class="db-chip"><strong>WC2026_DEV</strong>Project: wc2026-dev-3c9d9<br>Writes: R32mapping / main + __live / knockoutBracket</div>
-          <div class="db-chip"><strong>WC2026_PRD</strong>Project: wc2026-prd<br>Writes: R32mapping / main + __live / knockoutBracket</div>
-          <div class="db-chip"><strong>WC2026F_PRD</strong>Project: wc-2026f-prd<br>Writes: R32mapping / main + __live / knockoutBracket</div>
+          <div class="db-chip"><strong>WC2026_DEV</strong>Project: wc2026-dev-3c9d9<br>Editable here</div>
+          <div class="db-chip"><strong>WC2026_PRD</strong>Project: wc2026-prd<br>Updated only by “Copy to 2026_PRD”</div>
+          <div class="db-chip"><strong>WC2026F_PRD</strong>Project: wc-2026f-prd<br>Updated only by “Copy to 2026F_PRD”</div>
         </div>
       </div>
 
@@ -352,12 +356,12 @@
     </section>
 
     <div class="statusbar">
-      <div id="statusText" class="status-text">Loading teams and mapping…</div>
-      <div class="status-text">Target docs: <strong>R32mapping / main</strong> and <strong>__live / knockoutBracket</strong> in all 3 projects</div>
+      <div id="statusText" class="status-text">Loading DEV teams and mapping…</div>
+      <div class="status-text">Editable target: <strong>WC2026_DEV</strong> only • Copy targets: <strong>WC2026_PRD</strong> / <strong>WC2026F_PRD</strong></div>
     </div>
 
     <section id="groupsGrid" class="grid"></section>
-    <div class="footer-note">Standalone page. No firebase.js dependency. Writes to DEV + PRD + F_PRD together.</div>
+    <div class="footer-note">Standalone page. No firebase.js dependency. Direct edits go to DEV only.</div>
   </main>
 
   <script>
@@ -402,8 +406,7 @@
     const dbPrd = appPrd.firestore();
     const dbFPrd = appFPrd.firestore();
 
-    const TARGETS = [
-      { gameId: GAME_ID_DEV, projectId: firebaseConfigDev.projectId, db: dbDev },
+    const TARGETS_COPY = [
       { gameId: GAME_ID_PRD, projectId: firebaseConfigPrd.projectId, db: dbPrd },
       { gameId: GAME_ID_F_PRD, projectId: firebaseConfigFPrd.projectId, db: dbFPrd },
     ];
@@ -417,7 +420,10 @@
 
     const statusTextEl = document.getElementById("statusText");
     const groupsGridEl = document.getElementById("groupsGrid");
-    const resetPopulateBtn = document.getElementById("resetPopulateBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const randomPopulateBtn = document.getElementById("randomPopulateBtn");
+    const copyPrdBtn = document.getElementById("copyPrdBtn");
+    const copyFPrdBtn = document.getElementById("copyFPrdBtn");
 
     const sumTeamsEl = document.getElementById("sumTeams");
     const sumAssignedEl = document.getElementById("sumAssigned");
@@ -472,9 +478,7 @@
       for (const teamName of getAllTeamNames()) {
         const team = getTeamsObject()[teamName] || {};
         const values = [teamName, team.short, team.espn, team.name, team.country, team.team].filter(Boolean);
-        for (const value of values) {
-          aliases.set(normalizeTeamName(value), teamName);
-        }
+        for (const value of values) aliases.set(normalizeTeamName(value), teamName);
       }
       return aliases;
     }
@@ -485,38 +489,28 @@
     }
 
     function collectMatchLikeObjects(root, into = [], seen = new Set()) {
-      if (!root || seen.has(root)) return into;
-      if (typeof root !== "object") return into;
+      if (!root || seen.has(root) || typeof root !== "object") return into;
       seen.add(root);
-
       if (Array.isArray(root)) {
         for (const item of root) collectMatchLikeObjects(item, into, seen);
         return into;
       }
-
       const looksLikeMatch = (
         "group" in root || "Group" in root || "groupLetter" in root || "group_name" in root ||
         "home" in root || "away" in root || "team1" in root || "team2" in root ||
         "homeTeam" in root || "awayTeam" in root
       );
       if (looksLikeMatch) into.push(root);
-
-      for (const value of Object.values(root)) {
-        if (value && typeof value === "object") collectMatchLikeObjects(value, into, seen);
-      }
+      for (const value of Object.values(root)) if (value && typeof value === "object") collectMatchLikeObjects(value, into, seen);
       return into;
     }
 
     function findMatchCollections() {
       const candidates = [];
       const directNames = ["matches", "allMatches", "groupMatches", "GROUP_MATCHES", "MATCHES", "wcMatches", "WorldCupMatches"];
-      for (const name of directNames) {
-        if (window[name]) candidates.push({ name, value: window[name] });
-      }
+      for (const name of directNames) if (window[name]) candidates.push({ name, value: window[name] });
       for (const [key, value] of Object.entries(window)) {
-        if (!value) continue;
-        if (!/match/i.test(key)) continue;
-        if (typeof value !== "object") continue;
+        if (!value || typeof value !== "object" || !/match/i.test(key)) continue;
         candidates.push({ name: key, value });
       }
       return candidates;
@@ -524,14 +518,7 @@
 
     function extractTeamCandidatesFromMatch(match) {
       const out = [];
-      const fields = [
-        match.home, match.away,
-        match.team1, match.team2,
-        match.homeTeam, match.awayTeam,
-        match.homeName, match.awayName,
-        match.teamA, match.teamB,
-        match.slot1Team, match.slot2Team
-      ];
+      const fields = [match.home, match.away, match.team1, match.team2, match.homeTeam, match.awayTeam, match.homeName, match.awayName, match.teamA, match.teamB, match.slot1Team, match.slot2Team];
       for (const value of fields) {
         if (typeof value === "string") out.push(value);
         else if (value && typeof value === "object") {
@@ -570,10 +557,7 @@
             }
           }
         }
-        if (hits > 0) {
-          sourceName = candidate.name;
-          break;
-        }
+        if (hits > 0) { sourceName = candidate.name; break; }
       }
 
       state.groupSourceSummary = sourceName || "";
@@ -588,7 +572,6 @@
         group: groupMap.get(normalizeTeamName(name)) || "",
         FIFArank: data?.rank ?? data?.FIFArank ?? data?.fifaRank ?? null,
       }));
-
       arr.sort((a, b) => {
         const ai = GROUP_ORDER.indexOf(a.group);
         const bi = GROUP_ORDER.indexOf(b.group);
@@ -600,7 +583,6 @@
         if (aRank !== bRank) return aRank - bRank;
         return a.name.localeCompare(b.name);
       });
-
       return arr;
     }
 
@@ -613,7 +595,6 @@
           if (/^3RD\s+/i.test(text)) set.add(text);
         });
       });
-
       return Array.from(set).sort((a, b) => a.localeCompare(b));
     }
 
@@ -631,9 +612,7 @@
         options.push({ value: `1${group}`, label: `1${group}` });
         options.push({ value: `2${group}`, label: `2${group}` });
         state.thirdPlaceSlots.forEach(slot => {
-          if (getThirdPlaceGroups(slot).includes(group)) {
-            options.push({ value: slot, label: slot });
-          }
+          if (getThirdPlaceGroups(slot).includes(group)) options.push({ value: slot, label: slot });
         });
       }
       options.push({ value: ELIMINATED, label: "Eliminated" });
@@ -641,11 +620,13 @@
       return options;
     }
 
+    function qualifyingOptionsForGroup(group) {
+      return optionsForGroup(group).filter(opt => opt.value && opt.value !== ELIMINATED).map(opt => opt.value);
+    }
+
     function buildEmptyMappingFromTeams() {
       const out = {};
-      for (const team of state.teams) {
-        out[team.name] = { placement: null, player: null };
-      }
+      for (const team of state.teams) out[team.name] = { placement: null, player: null };
       return out;
     }
 
@@ -655,17 +636,14 @@
       const raw = snap.exists ? (snap.data() || {}) : {};
       for (const team of state.teams) {
         const prev = raw[team.name] || {};
-        baseline[team.name] = {
-          placement: prev.placement ?? null,
-          player: prev.player ?? null,
-        };
+        baseline[team.name] = { placement: prev.placement ?? null, player: prev.player ?? null };
       }
       state.mapping = baseline;
     }
 
-    function buildPlacementOwnershipMap() {
+    function buildPlacementOwnershipMap(mappingObj = state.mapping) {
       const owner = new Map();
-      for (const [teamName, teamData] of Object.entries(state.mapping || {})) {
+      for (const [teamName, teamData] of Object.entries(mappingObj || {})) {
         const placement = teamData?.placement;
         if (!placement || placement === ELIMINATED) continue;
         owner.set(String(placement), teamName);
@@ -675,9 +653,7 @@
 
     function updateSummary() {
       const total = state.teams.length;
-      let assigned = 0;
-      let eliminated = 0;
-      let unassigned = 0;
+      let assigned = 0, eliminated = 0, unassigned = 0;
       for (const team of state.teams) {
         const placement = state.mapping?.[team.name]?.placement ?? null;
         if (!placement) unassigned += 1;
@@ -694,11 +670,7 @@
       const ownership = buildPlacementOwnershipMap();
       const groupBuckets = new Map();
       GROUP_ORDER.forEach(g => groupBuckets.set(g, []));
-      state.teams.forEach(team => {
-        if (GROUP_ORDER.includes(team.group)) {
-          groupBuckets.get(team.group).push(team);
-        }
-      });
+      state.teams.forEach(team => { if (GROUP_ORDER.includes(team.group)) groupBuckets.get(team.group).push(team); });
 
       groupsGridEl.innerHTML = GROUP_ORDER.map(group => {
         const teams = groupBuckets.get(group);
@@ -711,7 +683,6 @@
             const selected = currentPlacement === opt.value ? "selected" : "";
             return `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label + suffix)}</option>`;
           }).join("");
-
           return `
             <div class="team-row">
               <div>
@@ -727,7 +698,6 @@
             </div>
           `;
         }).join("");
-
         return `
           <section class="group-card">
             <div class="group-head">
@@ -739,74 +709,60 @@
         `;
       }).join("");
 
-      groupsGridEl.querySelectorAll(".placement-select").forEach(select => {
-        select.addEventListener("change", onPlacementChange);
-      });
-
+      groupsGridEl.querySelectorAll(".placement-select").forEach(select => select.addEventListener("change", onPlacementChange));
       updateSummary();
     }
 
-    async function writeMappingToAllTargets(nextMapping) {
-      const results = await Promise.allSettled(
-        TARGETS.map(target => target.db.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }))
-      );
-      const failed = results
-        .map((result, index) => ({ result, target: TARGETS[index] }))
-        .filter(item => item.result.status === "rejected");
-      if (failed.length) {
-        const summary = failed.map(item => `${item.target.gameId} (${item.target.projectId})`).join(", ");
-        throw new Error(`Write failed in: ${summary}`);
-      }
+    async function writeMappingToDev(nextMapping) {
+      await dbDev.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false });
     }
 
-    async function writeBracketToAllTargets(bracketDoc) {
-      const results = await Promise.allSettled(
-        TARGETS.map(target => target.db.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(bracketDoc, { merge: false }))
-      );
-      const failed = results
-        .map((result, index) => ({ result, target: TARGETS[index] }))
-        .filter(item => item.result.status === "rejected");
-      if (failed.length) {
-        const summary = failed.map(item => `${item.target.gameId} (${item.target.projectId})`).join(", ");
-        throw new Error(`Write failed in: ${summary}`);
-      }
+    async function writeBracketToDb(targetDb, bracketDoc) {
+      await targetDb.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(bracketDoc, { merge: false });
     }
 
     function buildInitialBracketDoc() {
       const source = Array.isArray(window.R32matches) ? window.R32matches : [];
-      if (!source.length) {
-        throw new Error("window.R32matches is missing or empty.");
-      }
-
+      if (!source.length) throw new Error("window.R32matches is missing or empty.");
       const matches = {};
       source.forEach(item => {
         const matchNumber = Number(item?.matchNumber);
         const slot1 = String(item?.slot1Label || "").trim();
         const slot2 = String(item?.slot2Label || "").trim();
         if (!Number.isFinite(matchNumber) || !slot1 || !slot2) return;
-
-        matches[matchNumber] = {
-          matchNumber,
-          slot1,
-          slot2,
-          team1: null,
-          team2: null,
-          gameTime: null,
-          score1: null,
-          score2: null,
-          status: null,
-          winner: null,
-        };
+        matches[matchNumber] = { matchNumber, slot1, slot2, team1: null, team2: null, gameTime: null, score1: null, score2: null, status: null, winner: null };
       });
+      if (!Object.keys(matches).length) throw new Error("No valid matches were found in window.R32matches.");
+      return { matches, updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp() };
+    }
 
-      if (!Object.keys(matches).length) {
-        throw new Error("No valid matches were found in window.R32matches.");
+    function randomShuffle(arr) {
+      const out = arr.slice();
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
       }
+      return out;
+    }
 
-      return {
-        matches,
-        updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp(),
-      };
+    function assignRandomQualifiers(nextMapping, teamsToQualify) {
+      const ownership = buildPlacementOwnershipMap(nextMapping);
+      const qualifyingPlacements = new Set([...ownership.keys()]);
+      function backtrack(index, chosen) {
+        if (index === teamsToQualify.length) return chosen;
+        const team = teamsToQualify[index];
+        const options = randomShuffle(qualifyingOptionsForGroup(team.group).filter(value => !qualifyingPlacements.has(value)));
+        for (const placement of options) {
+          qualifyingPlacements.add(placement);
+          chosen.push({ teamName: team.name, placement });
+          const result = backtrack(index + 1, chosen);
+          if (result) return result;
+          chosen.pop();
+          qualifyingPlacements.delete(placement);
+        }
+        return null;
+      }
+      return backtrack(0, []);
     }
 
     async function onPlacementChange(event) {
@@ -818,35 +774,24 @@
 
       select.classList.remove("saved", "error");
       select.classList.add("saving");
-      setStatus(`Saving ${teamName} to all 3 databases…`);
+      setStatus(`Saving ${teamName} to DEV…`);
 
       try {
         const nextData = { ...(state.mapping || {}) };
         if (!nextData[teamName]) nextData[teamName] = { placement: null, player: null };
-
         if (newPlacement && newPlacement !== ELIMINATED) {
           for (const [otherTeam, data] of Object.entries(nextData)) {
             if (otherTeam !== teamName && data?.placement === newPlacement) {
-              nextData[otherTeam] = {
-                placement: null,
-                player: data?.player ?? null,
-              };
+              nextData[otherTeam] = { placement: null, player: data?.player ?? null };
             }
           }
         }
-
-        nextData[teamName] = {
-          placement: newPlacement,
-          player: nextData[teamName]?.player ?? null,
-        };
-
-        await writeMappingToAllTargets(nextData);
+        nextData[teamName] = { placement: newPlacement, player: nextData[teamName]?.player ?? null };
+        await writeMappingToDev(nextData);
         state.mapping = nextData;
         render();
-
         const readable = newPlacement == null ? "Unassigned" : (newPlacement === ELIMINATED ? "Eliminated" : newPlacement);
-        setStatus(`${teamName}: ${readable} saved to DEV + PRD + F_PRD`, "ok");
-
+        setStatus(`${teamName}: ${readable} saved to DEV`, "ok");
         const refreshedSelect = groupsGridEl.querySelector(`.placement-select[data-team="${CSS.escape(teamName)}"]`);
         if (refreshedSelect) {
           refreshedSelect.classList.add("saved");
@@ -862,58 +807,111 @@
       }
     }
 
-    async function resetAndRepopulate() {
-      const ok = window.confirm("This will overwrite R32mapping/main and __live/knockoutBracket in DEV, PRD, and F_PRD. Continue?");
+    async function clearDevOnly() {
+      const ok = window.confirm("This will clear DEV R32mapping/main and rebuild DEV __live/knockoutBracket only. Continue?");
       if (!ok) return;
-
       try {
-        resetPopulateBtn.disabled = true;
-        setStatus("Resetting R32mapping/main and repopulating __live/knockoutBracket in all 3 databases…");
-
+        clearBtn.disabled = true;
+        setStatus("Clearing DEV mapping and rebuilding DEV bracket…");
         const nextMapping = buildEmptyMappingFromTeams();
         const bracketDoc = buildInitialBracketDoc();
-
         await Promise.all([
-          writeMappingToAllTargets(nextMapping),
-          writeBracketToAllTargets(bracketDoc),
+          writeMappingToDev(nextMapping),
+          writeBracketToDb(dbDev, bracketDoc),
         ]);
+        state.mapping = nextMapping;
+        render();
+        const matchCount = Object.keys(bracketDoc.matches || {}).length;
+        setStatus(`DEV reset complete: ${state.teams.length} teams cleared and ${matchCount} bracket matches rebuilt.`, "ok");
+      } catch (error) {
+        console.error(error);
+        setStatus(`Clear failed: ${error?.message || error}`, "err");
+      } finally {
+        clearBtn.disabled = false;
+      }
+    }
 
+    async function randomPopulateBatch() {
+      try {
+        randomPopulateBtn.disabled = true;
+        setStatus("Randomly populating 4 qualifiers + 2 eliminated in DEV…");
+        const unassignedTeams = state.teams.filter(team => !state.mapping?.[team.name]?.placement);
+        if (unassignedTeams.length < 6) throw new Error("Need at least 6 unassigned teams to run one +6 batch.");
+
+        const picked = randomShuffle(unassignedTeams).slice(0, 6);
+        const eliminatedTeams = randomShuffle(picked).slice(0, 2);
+        const eliminateSet = new Set(eliminatedTeams.map(t => t.name));
+        const qualifierTeams = picked.filter(t => !eliminateSet.has(t.name));
+
+        const nextMapping = JSON.parse(JSON.stringify(state.mapping || {}));
+        const assignments = assignRandomQualifiers(nextMapping, qualifierTeams);
+        if (!assignments || assignments.length !== 4) throw new Error("Could not find a valid 4-team qualifying assignment for this batch.");
+
+        assignments.forEach(item => {
+          nextMapping[item.teamName] = { placement: item.placement, player: nextMapping[item.teamName]?.player ?? null };
+        });
+        eliminatedTeams.forEach(team => {
+          nextMapping[team.name] = { placement: ELIMINATED, player: nextMapping[team.name]?.player ?? null };
+        });
+
+        await writeMappingToDev(nextMapping);
         state.mapping = nextMapping;
         render();
 
-        const matchCount = Object.keys(bracketDoc.matches || {}).length;
-        setStatus(`Reset complete: ${state.teams.length} teams in R32mapping/main and ${matchCount} matches in __live/knockoutBracket across DEV + PRD + F_PRD.`, "ok");
+        const qualifierSummary = assignments.map(x => `${x.teamName}=${x.placement}`).join(', ');
+        const elimSummary = eliminatedTeams.map(x => x.name).join(', ');
+        setStatus(`Random +6 complete in DEV. Qualifiers: ${qualifierSummary}. Eliminated: ${elimSummary}.`, "ok");
       } catch (error) {
         console.error(error);
-        setStatus(`Reset/repopulate failed: ${error?.message || error}`, "err");
+        setStatus(`Random +6 failed: ${error?.message || error}`, "err");
       } finally {
-        resetPopulateBtn.disabled = false;
+        randomPopulateBtn.disabled = false;
+      }
+    }
+
+    async function copyDevToTarget(target) {
+      try {
+        setStatus(`Copying DEV R32mapping/main and DEV __live/knockoutBracket to ${target.gameId}…`);
+        const [mapSnap, bracketSnap] = await Promise.all([
+          dbDev.collection(COLLECTION_NAME).doc(DOC_ID).get(),
+          dbDev.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).get(),
+        ]);
+        const mapData = mapSnap.exists ? (mapSnap.data() || {}) : buildEmptyMappingFromTeams();
+        const bracketData = bracketSnap.exists ? (bracketSnap.data() || {}) : buildInitialBracketDoc();
+        await Promise.all([
+          target.db.collection(COLLECTION_NAME).doc(DOC_ID).set(mapData, { merge: false }),
+          target.db.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(bracketData, { merge: false }),
+        ]);
+        setStatus(`Copied DEV mapping + bracket to ${target.gameId}.`, "ok");
+      } catch (error) {
+        console.error(error);
+        setStatus(`Copy to ${target.gameId} failed: ${error?.message || error}`, "err");
       }
     }
 
     async function initializePage() {
       state.teams = buildTeams();
       state.thirdPlaceSlots = buildThirdPlaceSlots();
-
       if (!state.teams.length) {
         setStatus("No teams found in teams.js.", "err");
         return;
       }
-
       await loadPrimaryMapping();
       render();
-
       const missingGroups = state.teams.filter(team => !GROUP_ORDER.includes(team.group)).length;
       if (missingGroups > 0) {
         const sourceText = state.groupSourceSummary ? ` Group info source: ${state.groupSourceSummary}.` : "";
         setStatus(`Loaded ${state.teams.length} teams, but ${missingGroups} team(s) do not have a valid group A-L.${sourceText}`, "warn");
       } else {
         const sourceText = state.groupSourceSummary ? ` Group info source: ${state.groupSourceSummary}.` : "";
-        setStatus(`Loaded ${state.teams.length} teams and current mapping.${sourceText}`, "ok");
+        setStatus(`Loaded ${state.teams.length} teams and current DEV mapping.${sourceText}`, "ok");
       }
     }
 
-    resetPopulateBtn.addEventListener("click", resetAndRepopulate);
+    clearBtn.addEventListener("click", clearDevOnly);
+    randomPopulateBtn.addEventListener("click", randomPopulateBatch);
+    copyPrdBtn.addEventListener("click", () => copyDevToTarget(TARGETS_COPY[0]));
+    copyFPrdBtn.addEventListener("click", () => copyDevToTarget(TARGETS_COPY[1]));
 
     initializePage().catch(error => {
       console.error(error);
