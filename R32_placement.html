@@ -482,6 +482,8 @@
 
     const COLLECTION_NAME = "R32mapping";
     const DOC_ID = "main";
+	const STATUS_DOC_ID = "status";
+
 
     const LIVE_COLLECTION = "__live";
     const BRACKET_DOC_ID = "knockoutBracket";
@@ -825,6 +827,37 @@
 
       return out;
     }
+	
+	function isPlacementComplete(mappingObj = state.mapping) {
+	  if (!state.teams.length) return false;
+
+	  return state.teams.every(team => {
+		const placement = mappingObj?.[team.name]?.placement;
+		return placement !== null && placement !== undefined && placement !== "";
+	  });
+	}
+
+	function getR32StageFromMapping(mappingObj = state.mapping) {
+	  return isPlacementComplete(mappingObj) ? "Knockout" : "Group";
+	}
+
+	async function writeR32StatusToDb(targetDb, mappingObj = state.mapping) {
+	  const stage = getR32StageFromMapping(mappingObj);
+
+	  await targetDb
+		.collection(COLLECTION_NAME)
+		.doc(STATUS_DOC_ID)
+		.set({
+		  stage,
+		  updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp()
+		}, { merge: true });
+
+	  return stage;
+	}
+
+	async function syncDevStatusFromMapping(mappingObj = state.mapping) {
+	  return await writeR32StatusToDb(dbDev, mappingObj);
+	}
 
     async function loadPrimaryMapping() {
       const snap = await dbDev
@@ -1002,15 +1035,16 @@
       return safeDoc;
     }
 
-    async function writeMappingAndBracketToDev(nextMapping) {
-      const bracketDoc = await loadOrCreateBracketDoc(dbDev);
-      const nextBracketDoc = syncBracketTeamsFromMapping(bracketDoc, nextMapping);
+	async function writeMappingAndBracketToDev(nextMapping) {
+	  const bracketDoc = await loadOrCreateBracketDoc(dbDev);
+	  const nextBracketDoc = syncBracketTeamsFromMapping(bracketDoc, nextMapping);
 
-      await Promise.all([
-        dbDev.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }),
-        dbDev.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(nextBracketDoc, { merge: false })
-      ]);
-    }
+	  await Promise.all([
+		dbDev.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }),
+		dbDev.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).set(nextBracketDoc, { merge: false }),
+		writeR32StatusToDb(dbDev, nextMapping)
+	  ]);
+	}
 
     async function writeBracketToDb(targetDb, bracketDoc) {
       await targetDb
@@ -1235,10 +1269,11 @@
         const nextMapping = buildEmptyMappingFromTeams();
         const bracketDoc = buildInitialBracketDoc();
 
-        await Promise.all([
-          dbDev.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }),
-          writeBracketToDb(dbDev, bracketDoc)
-        ]);
+		await Promise.all([
+		  dbDev.collection(COLLECTION_NAME).doc(DOC_ID).set(nextMapping, { merge: false }),
+		  writeBracketToDb(dbDev, bracketDoc),
+		  writeR32StatusToDb(dbDev, nextMapping)
+		]);
 
         state.mapping = nextMapping;
 
@@ -1270,10 +1305,10 @@
 
         setStatus("Copying DEV R32 placement to WC2026_PRD and WC2026F_PRD…");
 
-        const [mapSnap, bracketSnap] = await Promise.all([
-          dbDev.collection(COLLECTION_NAME).doc(DOC_ID).get(),
-          dbDev.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).get()
-        ]);
+		const [mapSnap, bracketSnap] = await Promise.all([
+		  dbDev.collection(COLLECTION_NAME).doc(DOC_ID).get(),
+		  dbDev.collection(LIVE_COLLECTION).doc(BRACKET_DOC_ID).get()
+		])
 
         if (!mapSnap.exists) {
           throw new Error("DEV R32mapping/main does not exist.");
@@ -1294,21 +1329,34 @@
 
         const writes = [];
 
-        prdTargets.forEach(target => {
-          writes.push(
-            target.db
-              .collection(COLLECTION_NAME)
-              .doc(DOC_ID)
-              .set(mapData, { merge: false })
-          );
+		const stage = getR32StageFromMapping(mapData);
 
-          writes.push(
-            target.db
-              .collection(LIVE_COLLECTION)
-              .doc(BRACKET_DOC_ID)
-              .set(teamOnlyLiveUpdate, { merge: true })
-          );
-        });
+		prdTargets.forEach(target => {
+		  writes.push(
+			target.db
+			  .collection(COLLECTION_NAME)
+			  .doc(DOC_ID)
+			  .set(mapData, { merge: false })
+		  );
+
+		  writes.push(
+			target.db
+			  .collection(COLLECTION_NAME)
+			  .doc(STATUS_DOC_ID)
+			  .set({
+				stage,
+				updatedAtUtc: firebase.firestore.FieldValue.serverTimestamp()
+			  }, { merge: true })
+		  );
+
+		  writes.push(
+			target.db
+			  .collection(LIVE_COLLECTION)
+			  .doc(BRACKET_DOC_ID)
+			  .set(teamOnlyLiveUpdate, { merge: true })
+		  );
+		});
+
 
         await Promise.all(writes);
 
@@ -1338,10 +1386,14 @@
       const currentBracket = await loadOrCreateBracketDoc(dbDev);
       const syncedBracket = syncBracketTeamsFromMapping(currentBracket, state.mapping);
 
-      await dbDev
-        .collection(LIVE_COLLECTION)
-        .doc(BRACKET_DOC_ID)
-        .set(syncedBracket, { merge: false });
+	  await Promise.all([
+	    dbDev
+		.collection(LIVE_COLLECTION)
+		.doc(BRACKET_DOC_ID)
+		.set(syncedBracket, { merge: false }),
+
+		 syncDevStatusFromMapping(state.mapping)
+	  ]);
 
       render();
 
