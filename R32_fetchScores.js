@@ -252,9 +252,7 @@
             .map(normalizeText)
             .filter(Boolean);
 
-          if (aliases.some(function (alias) { return normalizeKey(alias) === key; })) {
-            return canonical || raw;
-          }
+          if (aliases.some(function (alias) { return normalizeKey(alias) === key; })) return canonical || raw;
         }
       } else if (typeof source === "object") {
         const teamKeys = Object.keys(source);
@@ -274,9 +272,7 @@
             .map(normalizeText)
             .filter(Boolean);
 
-          if (aliases.some(function (alias) { return normalizeKey(alias) === key; })) {
-            return canonical || raw;
-          }
+          if (aliases.some(function (alias) { return normalizeKey(alias) === key; })) return canonical || raw;
         }
       }
     }
@@ -426,7 +422,6 @@
 
   async function fetchEventDataForMatch(match, snapshotMatch, nowUtcMs) {
     const shouldFetch = shouldFetchScore(match, snapshotMatch, nowUtcMs);
-
     if (!shouldFetch) return null;
 
     const events = await fetchScoreboardEventsForMatch(match);
@@ -462,19 +457,119 @@
   }
 
   function applyNestedMatchPatch(updates, matchNumber, patch) {
-    if (!updates.matches || typeof updates.matches !== "object") {
-      updates.matches = {};
-    }
+    if (!updates.matches || typeof updates.matches !== "object") updates.matches = {};
 
     const key = String(matchNumber);
-
-    if (!updates.matches[key] || typeof updates.matches[key] !== "object") {
-      updates.matches[key] = {};
-    }
+    if (!updates.matches[key] || typeof updates.matches[key] !== "object") updates.matches[key] = {};
 
     Object.keys(patch || {}).forEach(function (field) {
       updates.matches[key][field] = patch[field];
     });
+  }
+
+  function getStaticSlotLabel(match, side) {
+    if (!match) return "";
+
+    if (side === 1) {
+      return String(match.slot1Label || match.slot1 || match.homeSlot || match.team1Slot || "").trim();
+    }
+
+    return String(match.slot2Label || match.slot2 || match.awaySlot || match.team2Slot || "").trim();
+  }
+
+  function isEmptyOrPlaceholderTeam(value) {
+    const raw = normalizeText(value);
+    if (!raw) return true;
+    if (isPlaceholderLike(raw)) return true;
+    if (/^W\d+$/i.test(raw)) return true;
+    if (/^L\d+$/i.test(raw)) return true;
+    return false;
+  }
+
+  function getPlayerForWinner(sourceMatch, winnerTeam) {
+    if (!sourceMatch || !winnerTeam) return null;
+
+    const winnerKey = normalizeKey(winnerTeam);
+    const team1Key = normalizeKey(sourceMatch.team1);
+    const team2Key = normalizeKey(sourceMatch.team2);
+
+    if (winnerKey && team1Key && winnerKey === team1Key) {
+      return (
+        sourceMatch.player1Name ||
+        sourceMatch.playerName1 ||
+        sourceMatch.player1 ||
+        sourceMatch.slot1PlayerName ||
+        sourceMatch.slot1Player ||
+        sourceMatch.team1PlayerName ||
+        sourceMatch.team1Player ||
+        sourceMatch.homePlayerName ||
+        sourceMatch.homePlayer ||
+        null
+      );
+    }
+
+    if (winnerKey && team2Key && winnerKey === team2Key) {
+      return (
+        sourceMatch.player2Name ||
+        sourceMatch.playerName2 ||
+        sourceMatch.player2 ||
+        sourceMatch.slot2PlayerName ||
+        sourceMatch.slot2Player ||
+        sourceMatch.team2PlayerName ||
+        sourceMatch.team2Player ||
+        sourceMatch.awayPlayerName ||
+        sourceMatch.awayPlayer ||
+        null
+      );
+    }
+
+    return null;
+  }
+
+  function applyWinnerPropagation(updates, staticMatches, snapshot, sourceMatchNumber, winnerTeam, nowIso) {
+    if (!winnerTeam) return 0;
+
+    const sourceKey = String(sourceMatchNumber);
+    const winnerSlot = "W" + sourceKey;
+    const sourceMatch = getSnapshotMatch(snapshot, sourceKey) || {};
+    const pendingSourceUpdate = updates && updates.matches && updates.matches[sourceKey] ? updates.matches[sourceKey] : {};
+    const sourceWithPending = Object.assign({}, sourceMatch, pendingSourceUpdate);
+    const winnerPlayer = getPlayerForWinner(sourceWithPending, winnerTeam);
+
+    let propagatedCount = 0;
+
+    for (let i = 0; i < (staticMatches || []).length; i++) {
+      const targetMatch = staticMatches[i];
+      const targetMatchNumber = String(targetMatch && targetMatch.matchNumber);
+
+      if (!targetMatchNumber || targetMatchNumber === sourceKey) continue;
+
+      const snapshotTarget = getSnapshotMatch(snapshot, targetMatchNumber) || {};
+      const pendingTargetUpdate = updates && updates.matches && updates.matches[targetMatchNumber] ? updates.matches[targetMatchNumber] : {};
+      const targetWithPending = Object.assign({}, snapshotTarget, pendingTargetUpdate);
+
+      const slot1 = getStaticSlotLabel(targetMatch, 1);
+      const slot2 = getStaticSlotLabel(targetMatch, 2);
+      const patch = {};
+
+      if (normalizeKey(slot1) === normalizeKey(winnerSlot)) {
+        if (isEmptyOrPlaceholderTeam(targetWithPending.team1)) patch.team1 = winnerTeam;
+        if (winnerPlayer && !normalizeText(targetWithPending.player1Name)) patch.player1Name = String(winnerPlayer);
+      }
+
+      if (normalizeKey(slot2) === normalizeKey(winnerSlot)) {
+        if (isEmptyOrPlaceholderTeam(targetWithPending.team2)) patch.team2 = winnerTeam;
+        if (winnerPlayer && !normalizeText(targetWithPending.player2Name)) patch.player2Name = String(winnerPlayer);
+      }
+
+      if (Object.keys(patch).length) {
+        patch.updatedAtUtc = nowIso;
+        applyNestedMatchPatch(updates, targetMatchNumber, patch);
+        propagatedCount += 1;
+      }
+    }
+
+    return propagatedCount;
   }
 
   async function syncKnockoutSnapshotClient(db, options) {
@@ -505,10 +600,31 @@
         const espnData = await fetchEventDataForMatch(match, snapshotMatch, nowUtcMs);
         const patch = buildMatchPatch(snapshotMatch, espnData, nowIso);
 
-        if (!patch) continue;
+        if (patch) {
+          applyNestedMatchPatch(updates, matchNumber, patch);
+          changedMatchCount += 1;
+        }
 
-        applyNestedMatchPatch(updates, matchNumber, patch);
-        changedMatchCount += 1;
+        const finalStatus =
+          (patch && patch.status) ||
+          (snapshotMatch && snapshotMatch.status);
+
+        const finalWinner =
+          (patch && patch.winner) ||
+          (snapshotMatch && snapshotMatch.winner);
+
+        if (finalStatus === "complete" && finalWinner) {
+          const propagatedCount = applyWinnerPropagation(
+            updates,
+            staticMatches,
+            snapshot,
+            matchNumber,
+            finalWinner,
+            nowIso
+          );
+
+          if (propagatedCount > 0) changedMatchCount += propagatedCount;
+        }
       } catch (err) {
         console.error("syncKnockoutSnapshotClient match " + matchNumber + " error:", err);
       }
@@ -546,11 +662,7 @@
     }
 
     const snapshot = await loadKnockoutSnapshot(db);
-
-    return {
-      snapshot: snapshot,
-      fetchedAtClientUtc: toIsoNow()
-    };
+    return { snapshot: snapshot, fetchedAtClientUtc: toIsoNow() };
   }
 
   function startR32AutoRefresh(config) {
@@ -572,7 +684,6 @@
 
     async function refresh(runOptions) {
       const opts = runOptions || {};
-
       if (stopped) return null;
 
       const useSync =
@@ -589,7 +700,6 @@
         });
 
         if (typeof onUpdate === "function") await onUpdate(result);
-
         return result;
       } catch (err) {
         console.error("startR32AutoRefresh refresh error:", err);
