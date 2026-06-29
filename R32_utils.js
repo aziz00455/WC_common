@@ -14,16 +14,22 @@
   function getStaticR32Matches() {
     return (window.R32matches || [])
       .slice()
-      .sort((a, b) => (a.matchNumber || 0) - (b.matchNumber || 0));
+      .sort(function (a, b) {
+        return (a.matchNumber || 0) - (b.matchNumber || 0);
+      });
   }
 
   function getMatchByNumber(matchNumber) {
-    return getStaticR32Matches().find(m => m.matchNumber === matchNumber) || null;
+    return getStaticR32Matches().find(function (m) {
+      return m.matchNumber === matchNumber;
+    }) || null;
   }
 
   function getMatchesByRound(round) {
     const target = normalizeRound(round);
-    return getStaticR32Matches().filter(m => normalizeRound(m.round) === target);
+    return getStaticR32Matches().filter(function (m) {
+      return normalizeRound(m.round) === target;
+    });
   }
 
   function formatKickoffUtc(utc) {
@@ -39,7 +45,7 @@
       minute: "2-digit"
     }).format(date);
 
-    return `${hhmm} EDT`;
+    return hhmm + " EDT";
   }
 
   function formatShortDate(utc) {
@@ -89,7 +95,7 @@
       minute: "2-digit"
     }).format(date);
 
-    return `${mmdd} ${hhmm} EDT`;
+    return mmdd + " " + hhmm + " EDT";
   }
 
   function getStatusClass(status) {
@@ -157,34 +163,27 @@
 
     return {
       ...staticMatch,
-
       live,
-
       team1: live?.team1 || null,
       team2: live?.team2 || null,
-
       displayTeam1: getDisplayTeamName(live, staticMatch.slot1Label, 1),
       displayTeam2: getDisplayTeamName(live, staticMatch.slot2Label, 2),
-
       score1: getDisplayScore(live, 1),
       score2: getDisplayScore(live, 2),
-
       status: live?.status || "scheduled",
       winner: live?.winner || null,
       gameTime: live?.gameTime || "",
       player1Name: live?.player1Name || "",
       player2Name: live?.player2Name || "",
-
       hasRealTeam1: isRealTeamFilled(live, 1),
       hasRealTeam2: isRealTeamFilled(live, 2),
-
       team1IsWinner: isWinner(live, 1),
       team2IsWinner: isWinner(live, 2)
     };
   }
 
   function mergeR32Matches(staticMatches, snapshot) {
-    return (staticMatches || []).map(match => {
+    return (staticMatches || []).map(function (match) {
       const live = getSnapshotMatch(snapshot, match.matchNumber);
       return mergeMatch(match, live);
     });
@@ -202,18 +201,22 @@
   }
 
   function getMergedMatchByNumber(mergedMatches, matchNumber) {
-    return (mergedMatches || []).find(m => m.matchNumber === matchNumber) || null;
+    return (mergedMatches || []).find(function (m) {
+      return m.matchNumber === matchNumber;
+    }) || null;
   }
 
   function getMergedMatchesByRound(mergedMatches, round) {
     const target = normalizeRound(round);
-    return (mergedMatches || []).filter(m => normalizeRound(m.round) === target);
+    return (mergedMatches || []).filter(function (m) {
+      return normalizeRound(m.round) === target;
+    });
   }
 
   function countFilledSlots(mergedMatches) {
     let filled = 0;
 
-    (mergedMatches || []).forEach(match => {
+    (mergedMatches || []).forEach(function (match) {
       if (match.hasRealTeam1) filled++;
       if (match.hasRealTeam2) filled++;
     });
@@ -224,7 +227,7 @@
   function countOpenSlots(mergedMatches) {
     let open = 0;
 
-    (mergedMatches || []).forEach(match => {
+    (mergedMatches || []).forEach(function (match) {
       if (!match.hasRealTeam1) open++;
       if (!match.hasRealTeam2) open++;
     });
@@ -235,7 +238,7 @@
   function getAllRealTeams(mergedMatches) {
     const set = new Set();
 
-    (mergedMatches || []).forEach(match => {
+    (mergedMatches || []).forEach(function (match) {
       if (match.team1) set.add(match.team1);
       if (match.team2) set.add(match.team2);
     });
@@ -251,7 +254,9 @@
   }
 
   function getTeamMatches(mergedMatches, teamName) {
-    return (mergedMatches || []).filter(m => teamAppearsInMatch(m, teamName));
+    return (mergedMatches || []).filter(function (m) {
+      return teamAppearsInMatch(m, teamName);
+    });
   }
 
   function getLatestTeamMatch(mergedMatches, teamName) {
@@ -260,7 +265,9 @@
 
     return matches
       .slice()
-      .sort((a, b) => new Date(a.kickoffUtc) - new Date(b.kickoffUtc))
+      .sort(function (a, b) {
+        return new Date(a.kickoffUtc) - new Date(b.kickoffUtc);
+      })
       .slice(-1)[0];
   }
 
@@ -319,24 +326,22 @@
       lastActivityTime = Date.now();
     }
 
-    ["click", "mousemove", "keydown", "scroll", "touchstart"].forEach(evt => {
+    ["click", "mousemove", "keydown", "scroll", "touchstart"].forEach(function (evt) {
       document.addEventListener(evt, updateActivity, { passive: true });
     });
 
-    document.addEventListener("visibilitychange", () => {
+    document.addEventListener("visibilitychange", function () {
       if (!document.hidden) {
         lastActivityTime = Date.now();
       }
     });
 
-    const timer = setInterval(() => {
+    const timer = setInterval(function () {
       const now = Date.now();
 
       if (now - lastActivityTime > idleMs) {
         try {
-          if (sessionKey) {
-            localStorage.removeItem(sessionKey);
-          }
+          if (sessionKey) localStorage.removeItem(sessionKey);
         } catch (err) {}
 
         window.location.href = redirectUrl;
@@ -344,7 +349,7 @@
     }, checkMs);
 
     return {
-      stop() {
+      stop: function () {
         clearInterval(timer);
       }
     };
@@ -371,36 +376,82 @@
 
     const {
       db,
-      syncUrl = "",
       refreshMs = 10 * 60 * 1000,
       triggerSyncOnStart = false,
       triggerSyncOnRefresh = false,
-      syncPayload = {},
-      syncOptions = {},
       onUpdate,
       onError
     } = config || {};
 
-    return window.R32FetchScores.startR32AutoRefresh({
-      db,
-      syncUrl,
-      refreshMs,
-      triggerSyncOnStart,
-      triggerSyncOnRefresh,
-      syncPayload,
-      syncOptions,
-      onUpdate: async ({ snapshot, fetchedAtClientUtc }) => {
-        const context = buildR32Context(snapshot);
+    if (!db) {
+      throw new Error("startR32PageRefresh: db is required");
+    }
+
+    let stopped = false;
+    let timer = null;
+
+    async function runLoad({ isInitial = false } = {}) {
+      if (stopped) return null;
+
+      try {
+        if (isInitial || triggerSyncOnStart) {
+          console.log("[R32Utils] Initial page load score sync starting...");
+          const syncResult = await window.R32FetchScores.syncKnockoutSnapshotClient(db, {
+            staticMatches: getStaticR32Matches()
+          });
+          console.log("[R32Utils] Initial page load score sync complete.", syncResult);
+        } else if (triggerSyncOnRefresh) {
+          console.log("[R32Utils] Refresh score sync starting...");
+          const syncResult = await window.R32FetchScores.syncKnockoutSnapshotClient(db, {
+            staticMatches: getStaticR32Matches()
+          });
+          console.log("[R32Utils] Refresh score sync complete.", syncResult);
+        }
+
+        const result = await window.R32FetchScores.loadR32Snapshot(db, {
+          triggerSyncFirst: false
+        });
+
+        const context = buildR32Context(result.snapshot);
 
         if (typeof onUpdate === "function") {
           await onUpdate({
             ...context,
-            fetchedAtClientUtc
+            fetchedAtClientUtc: result.fetchedAtClientUtc
           });
         }
+
+        return {
+          ...context,
+          fetchedAtClientUtc: result.fetchedAtClientUtc
+        };
+      } catch (err) {
+        console.error("[R32Utils] Page refresh/load error:", err);
+        if (typeof onError === "function") onError(err);
+        throw err;
+      }
+    }
+
+    runLoad({ isInitial: true }).catch(function () {});
+
+    timer = setInterval(function () {
+      runLoad({ isInitial: false }).catch(function () {});
+    }, refreshMs);
+
+    return {
+      stop: function () {
+        stopped = true;
+        if (timer) clearInterval(timer);
       },
-      onError
-    });
+      refreshNow: async function (forceSync) {
+        if (forceSync) {
+          await window.R32FetchScores.syncKnockoutSnapshotClient(db, {
+            staticMatches: getStaticR32Matches()
+          });
+        }
+        return runLoad({ isInitial: false });
+      }
+    };
   }
 
   window.R32Utils = {
