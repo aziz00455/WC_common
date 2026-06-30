@@ -163,11 +163,18 @@
     const kickoff = new Date(kickoffUtc);
     if (Number.isNaN(kickoff.getTime())) return [];
 
-    const sameDay = new Date(kickoff);
     const prevDay = new Date(kickoff);
-    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+    const sameDay = new Date(kickoff);
+    const nextDay = new Date(kickoff);
 
-    return [toDateKey(sameDay), toDateKey(prevDay)];
+    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+    return [
+      toDateKey(prevDay),
+      toDateKey(sameDay),
+      toDateKey(nextDay)
+    ];
   }
 
   async function fetchScoreboardByDate(dateKey) {
@@ -182,39 +189,32 @@
 
   async function fetchScoreboardEventsForMatch(match) {
     const dateKeys = getCandidateDateKeys(match && match.kickoffUtc);
+    const allEvents = [];
 
     for (let i = 0; i < dateKeys.length; i++) {
       const dateKey = dateKeys[i];
 
       try {
         const events = await fetchScoreboardByDate(dateKey);
-        if (events.length) return events;
+
+        if (Array.isArray(events) && events.length) {
+          events.forEach(function (event) {
+            allEvents.push(event);
+          });
+        }
       } catch (err) {
-        console.error("fetchScoreboardEventsForMatch failed for " + (match && match.matchNumber) + ":", err);
+        console.error(
+          "fetchScoreboardEventsForMatch failed for " +
+            (match && match.matchNumber) +
+            " date " +
+            dateKey +
+            ":",
+          err
+        );
       }
     }
 
-    return [];
-  }
-
-  function findEventByKickoff(events, match) {
-    const target = String((match && match.kickoffUtc) || "");
-    if (!target) return null;
-
-    const targetMs = new Date(target).getTime();
-    if (!Number.isFinite(targetMs)) return null;
-
-    for (let i = 0; i < (events || []).length; i++) {
-      const event = events[i];
-      const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
-      const eventUtc = String((comp && comp.date) || event.date || "");
-      if (!eventUtc) continue;
-
-      const eventMs = new Date(eventUtc).getTime();
-      if (Number.isFinite(eventMs) && eventMs === targetMs) return event;
-    }
-
-    return null;
+    return allEvents;
   }
 
   function isPlaceholderLike(value) {
@@ -309,6 +309,77 @@
       competitor.team &&
       (competitor.team.displayName || competitor.team.shortDisplayName || competitor.team.name)
     );
+  }
+
+  function findEventByKickoff(events, match, snapshotMatch) {
+    const target = String((match && match.kickoffUtc) || "");
+    if (!target) return null;
+
+    const targetMs = new Date(target).getTime();
+    if (!Number.isFinite(targetMs)) return null;
+
+    const expectedTeam1 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team1);
+    const expectedTeam2 = canonicalizeTeamName(snapshotMatch && snapshotMatch.team2);
+    const expectedKeys = [expectedTeam1, expectedTeam2]
+      .map(normalizeKey)
+      .filter(Boolean);
+
+    let exactByTeams = null;
+    let closestByTeams = null;
+    let closestByTeamsDiff = Infinity;
+
+    let exactByTime = null;
+    let closestByTime = null;
+    let closestByTimeDiff = Infinity;
+
+    for (let i = 0; i < (events || []).length; i++) {
+      const event = events[i];
+      const comp = event && Array.isArray(event.competitions) ? event.competitions[0] : null;
+      const eventUtc = String((comp && comp.date) || event.date || "");
+      if (!eventUtc) continue;
+
+      const eventMs = new Date(eventUtc).getTime();
+      if (!Number.isFinite(eventMs)) continue;
+
+      const diff = Math.abs(eventMs - targetMs);
+
+      const competitorNames = orderCompetitors(getCompetitorsFromEvent(event))
+        .map(getCompetitorCanonicalName)
+        .map(normalizeKey)
+        .filter(Boolean);
+
+      const matchedCount = expectedKeys.length
+        ? expectedKeys.filter(function (key) {
+            return competitorNames.indexOf(key) >= 0;
+          }).length
+        : 0;
+
+      if (eventMs === targetMs) {
+        if (matchedCount >= 2) {
+          exactByTeams = event;
+          break;
+        }
+
+        if (!exactByTime) exactByTime = event;
+      }
+
+      if (matchedCount >= 2 && diff <= 3 * 60 * 60 * 1000 && diff < closestByTeamsDiff) {
+        closestByTeams = event;
+        closestByTeamsDiff = diff;
+      }
+
+      if (diff <= 3 * 60 * 60 * 1000 && diff < closestByTimeDiff) {
+        closestByTime = event;
+        closestByTimeDiff = diff;
+      }
+    }
+
+    if (exactByTeams) return exactByTeams;
+    if (closestByTeams) return closestByTeams;
+    if (exactByTime) return exactByTime;
+    if (closestByTime) return closestByTime;
+
+    return null;
   }
 
   function mapEspnStatus(event) {
@@ -427,7 +498,7 @@
     const events = await fetchScoreboardEventsForMatch(match);
     if (!events.length) return null;
 
-    const event = findEventByKickoff(events, match);
+    const event = findEventByKickoff(events, match, snapshotMatch);
     if (!event) return null;
 
     return extractEventDataForMatch(event, snapshotMatch);
